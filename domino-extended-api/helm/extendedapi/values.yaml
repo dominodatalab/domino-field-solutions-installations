@@ -1,0 +1,16 @@
+image:
+  repository: quay.io/domino
+  container: extendedapi
+  appVersion: v0.0.2
+  pullPolicy: Always
+
+env:
+  name: extendedapi
+  service: extendedapi-svc
+  admins_acl: extended-api-acls
+  namespace:
+    platform: domino-platform
+    compute: domino-compute
+istio:
+  enabled: false
+

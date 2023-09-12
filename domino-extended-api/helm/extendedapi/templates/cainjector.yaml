@@ -1,0 +1,20 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: "{{ .Values.env.name }}-certificate"
+spec:
+  secretName: "{{ .Values.env.name }}-certs"
+  dnsNames:
+  - "{{ .Values.env.service }}"
+  - "{{ .Values.env.service }}.{{ .Values.env.namespace.platform }}"
+  - "{{ .Values.env.service }}.{{ .Values.env.namespace.platform }}.svc"
+  issuerRef:
+    name: "selfsigned-{{ .Values.env.name }}"
+---
+
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: "selfsigned-{{ .Values.env.name }}"
+spec:
+  selfSigned: {}

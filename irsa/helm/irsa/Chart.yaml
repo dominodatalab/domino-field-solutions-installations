@@ -1,0 +1,12 @@
+apiVersion: v1
+name: irsa
+version: 1.0.0
+description: irsa
+home: https://github.com/cerebrotech/IRSA_DOMINO
+keywords:
+- irsa
+- IAM Role to K8s SA mapping
+- AWS Credential Propagation
+maintainers:
+- email: sameer.wadkar@dominodatalab.com
+  name: Sameer Wadkar

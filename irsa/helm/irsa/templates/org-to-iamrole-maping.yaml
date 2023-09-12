@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: domino-org-iamrole-mapping
+data: {
+  }
+

@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Values.env.name }}-webhook"
+  labels:
+    app: "{{ .Values.env.name }}-webhook"
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: "{{ .Values.env.name }}-webhook"
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "{{ .Values.metrics_port }}"
+        prometheus.io/scrape: "true"
+      labels:
+        app: "{{ .Values.env.name }}-webhook"
+        mongodb-replicaset-client: "true"
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: "{{ .Values.env.name }}-webhook"
+      automountServiceAccountToken: true
+      nodeSelector:
+        dominodatalab.com/node-pool: platform
+      containers:
+      - name: domsed
+        command:
+          - gunicorn
+          - -b
+          - 0.0.0.0:{{ .Values.webhook_port }}
+          - --certfile=/ssl/tls.crt
+          - --keyfile=/ssl/tls.key
+          - --workers={{ .Values.gunicorn_workers }}
+          - domsed.webhook:create_app()
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - all
+        image: "{{ .Values.image.repository }}/{{ .Values.image.container }}:{{ .Values.image.appVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.webhook_port }}
+          name: http
+          protocol: TCP
+        - containerPort: {{ .Values.metrics_port }}
+          name: metrics
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.webhook_port }}
+            scheme: HTTPS
+          initialDelaySeconds: 20
+          failureThreshold: 2
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.webhook_port }}
+            scheme: HTTPS
+          initialDelaySeconds: 20
+          failureThreshold: 2
+          timeoutSeconds: 5
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        env:
+        - name: K8S_WATCHER_TIMEOUT
+          value: {{ .Values.mutation.client_watcher_timeout | quote }}
+        - name: PROMETHEUS_MULTIPROC_DIR
+          value: /app/metrics/domsed/
+        - name: PROMETHEUS_METRICS_PORT
+          value: {{ .Values.metrics_port | quote }}
+        - name: PLATFORM_NAMESPACE
+          value: {{ .Values.env.namespace.platform }}
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: mongodb-replicaset-admin
+              optional: true
+        - name: MONGO_HOST
+          value: mongodb-replicaset.{{ .Values.env.namespace.platform }}.svc.{{ .Values.cluster_domain}}:27017
+        - name: LOG_LEVEL
+          value: {{ .Values.log_level }}
+        volumeMounts:
+          - name: certs
+            mountPath: /ssl
+            readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: "{{ .Values.env.name }}-webhook-certs"
+    {{- with .Values.env.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end}}

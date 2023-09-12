@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Values.env.name}}
+  namespace: {{.Values.env.namespace.field}}
+  labels:
+    app: {{.Values.env.name}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{.Values.env.name}}
+  template:
+    metadata:
+      labels:
+        app: {{.Values.env.name}}
+        nucleus-client: "true"
+        security.istio.io/tlsMode: "istio"
+    spec:
+      securityContext:
+          fsGroup: 12574
+      serviceAccountName: {{.Values.env.name}}
+      automountServiceAccountToken: true
+      nodeSelector:
+        dominodatalab.com/node-pool: platform
+      containers:
+      - name: {{.Values.env.name}}
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - all
+        image: "{{.Values.image.repository}}/{{.Values.image.serverContainer}}:{{.Values.image.serverAppVersion}}"
+        env:
+        - name: DOMINO_USER_HOST
+          value: "http://nucleus-frontend.domino-platform:80"
+        - name: DEFAULT_FIELD_NS
+          value: {{.Values.env.namespace.field}}
+        - name: DEFAULT_COMPUTE_NS
+          value: {{.Values.env.namespace.compute}}
+        - name: OIDC_PROVIDER
+          value: {{.Values.env.oidc_provider}}
+        - name: OIDC_PROVIDER_AUDIENCE
+          value: {{.Values.env.oidc_provider_audience}}
+        ports:
+        - containerPort: 6000
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 6000
+            scheme: HTTPS
+          initialDelaySeconds: 20
+          failureThreshold: 2
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 6000
+            scheme: HTTPS
+          initialDelaySeconds: 20
+          failureThreshold: 2
+          timeoutSeconds: 5
+        imagePullPolicy: Always
+        volumeMounts:
+          - name: certs
+            mountPath: /ssl
+            readOnly: true
+          - name: logs
+            mountPath: /var/log/irsa
+      volumes:
+        - name: certs
+          secret:
+            secretName: "{{.Values.env.name}}-certs"
+        - name: logs
+          emptyDir:
+            sizeLimit: 1000Mi

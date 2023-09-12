@@ -1,0 +1,17 @@
+apiVersion: v1
+name: domsed-domino
+version: 1.2.0
+description: Mutating Webhook domino
+home: https://github.com/cerebrotech/domsed.git
+keywords:
+- mutating webhook
+- domsed
+maintainers:
+- email: oussama.benlagha@dominodatalab.com
+  name: Oussama Ben Lagha
+- email: vaibhav.dhawan@dominodatalab.com
+  name: Vaibhav Dhawan
+- email: kevin.flansburg@dominodatalab.com
+  name: Kevin Flansburg
+- email: blake.moore@dominodatalab.com
+  name: Blake Moore

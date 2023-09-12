@@ -1,0 +1,61 @@
+image:
+  repository: quay.io/domino
+  container: domsed
+  appVersion: v1.2.0-release
+  pullPolicy: Always
+
+replicas: 1
+
+cluster_domain: cluster.local
+imagePullSecrets: [{"name": "domino-quay-repos"}]
+
+resources: 
+  limits:
+    cpu: 250m
+    memory: 512Mi
+  requests:
+    cpu: 125m
+    memory: 512Mi  
+
+# Number of gunicorn worker threads (gevent)
+gunicorn_workers: 3
+
+# Worker log level
+log_level: INFO
+
+# Pod port (firewall exceptions may be required to change this)
+# By default, domino terraform will create a rule for 
+#  the hephaestus webhook on this port
+webhook_port: 9443
+
+# Metrics port (serves /metrics under this port)
+metrics_port: 8080
+
+env:
+  name: operator
+  service: operator-webhook-svc
+  namespace:
+    platform: domino-platform
+    compute: domino-compute
+  # Use the below for adding a toleration to the operator-webhook pod. 
+  # tolerations:
+  # - effect: NoSchedule
+  #   key: domino
+  #   operator: Equal
+  #   value: worker
+
+istio:
+  enabled: false
+
+mutation:
+  # k8s API client watcher timeout
+  client_watcher_timeout: 120
+
+  # Set to Ignore to silently fail any mutations and deploy the original object with no changes
+  # Set to Fail to reject any pod that fails the mutation
+  # Note that the Fail policy is dangerous, and can cause all pods to fail
+  #  if there are any mutation errors
+  failurePolicy: Ignore
+
+  # Kubernetes Mutation API request timeout
+  timeoutSeconds: 10

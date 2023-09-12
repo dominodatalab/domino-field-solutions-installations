@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Values.env.name }}"
+  labels:
+    app: "{{ .Values.env.name }}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "{{ .Values.env.name}}"
+  template:
+    metadata:
+      labels:
+        app: "{{ .Values.env.name }}"
+        nucleus-client: "true"
+        mongodb-replicaset-client: "true"
+    spec:
+      nodeSelector:
+        dominodatalab.com/node-pool: platform
+      containers:
+      - name: "{{ .Values.env.name }}"
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - all
+        image: "{{ .Values.image.repository }}/{{ .Values.image.container }}:{{ .Values.image.appVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 5000
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 20
+          failureThreshold: 2
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 20
+          failureThreshold: 2
+          timeoutSeconds: 5
+        env:
+        - name: PLATFORM_NAMESPACE
+          value: {{ .Values.env.namespace.platform }}
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: mongodb-replicaset-admin
+        volumeMounts:
+          - name: certs
+            mountPath: /ssl
+            readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: "{{ .Values.env.name }}-certs"
