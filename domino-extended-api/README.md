@@ -22,5 +22,5 @@ The details about the endpoints can be found in this [README.md](./domino-extend
 
 ## Notebooks
 
-1. [Domsed Client Notebook](./notebooks/domsed_client.ipynb) - An admin can use this notebook to manage mutations
-2. [Control HW Tier Access Notebook](./notebooks/manage_hwtier_rbac.ipynb) - This is a helper notebooks to create the complex mutations to manage the hw tiers
+1. [Domsed Client Notebook](./code-examples/notebooks/domsed_client.ipynb) - An admin can use this notebook to manage mutations
+2. [Control HW Tier Access Notebook](./code-examples/notebooks/manage_hwtier_rbac.ipynb) - This is a helper notebooks to create the complex mutations to manage the hw tiers
