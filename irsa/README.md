@@ -1,14 +1,26 @@
-IRSA Installation
+## Pre-requisites
+Create a namespace domino-field
+```
+kubectl create ns domino-field
+kubectl label namespace domino-field  domino-compute=true
+```
+
+## Delete IRSA
+If you have already installed IRSA and want to delete it for reinstallation
+```
+helm delete irsa -n domino-field
+export compute_namespace=domino-compute
+kubectl delete secret irsa-certs -n {domino-field }
+```
+> ***Attention***:  **After reinstalling IRSA you will need to recreate the mappings**
+
+## IRSA Installation
 
 a. First create organizations in domino matching the AWS role names
 
 b. Update the `values.yaml` with the proper values
 
 ```shell
-export eks_aws_account=<eks_aws_account>
-export assets_aws_account=<assets_aws_account>
-export eks_service_role_name=<eks_service_role_name>
-export oidc_provider=<oidc_provider>
 
 export platform_namespace=domino-platform
 export compute_namespace=domino-compute
