@@ -161,3 +161,5 @@ cython_debug/
 irsa/.DS_Store
 domino-extended-api/.DS_Store
 domino-extended-api/helm/.DS_Store
+
+.idea/
