@@ -1,5 +1,7 @@
 # Domino Extended API (Field Extensions)
 
+# Domino Extended API (Field Extensions)
+
 This library enables adding new API endpoints to support customer requirements 
 
 ## Installation
@@ -7,36 +9,45 @@ This library enables adding new API endpoints to support customer requirements
 From the root folder of this project run the following commands:
 
 1. First publish the image
-```
+```shell
 tag="${tag:-latest}"
 operator_image="${operator_image:-quay.io/domino/extendedapi}"
 docker build -f ./Dockerfile -t ${operator_image}:${tag} .
 docker push ${operator_image}:${tag}
 ```
+
 or run
+
 ```shell
 ./create_and_push_docker_image.sh ${tag}
 ```
-2. Use Helm to Install
+2. ## Use Helm to Install
+Check if you have domino-field namespace in the current cluster 
 ```shell
+kubectl get ns
+``` 
+if domino-field namspace is not present create using below command
+```shell
+kubectl create namespace domino-field
+kubectl label namespace domino-field  domino-compute=true
+```
+Install using Helm
 
+```shell
 export field_namespace=domino-field
 helm install -f helm/extendedapi/values.yaml extendedapi helm/extendedapi -n ${field_namespace}
-kubectl get secret extendedapi-certs --namespace=domino-field -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
 ```
 3. To upgrade use helm
 ```shell
 export field_namespace=domino-field
 helm upgrade -f helm/extendedapi/values.yaml extendedapi helm/extendedapi -n ${field_namespace}
-kubectl delete secret extendedapi-certs -n {domino-field }
-kubectl get secret extendedapi-certs --namespace=domino-field -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
-````
+```
+
 4. To delete use helm 
 
 ```shell
 export field_namespace=domino-field
 helm delete  extendedapi -n ${field_namespace}
-kubectl delete secret extendedapi-certs -n {field_namespace}
 ```
 
 ## Using the API
@@ -291,8 +302,6 @@ response = requests.request("POST", url, headers=headers, data=payload)
 
 print(response.text)
 ```
-
-
 
 ## Notebooks
 
