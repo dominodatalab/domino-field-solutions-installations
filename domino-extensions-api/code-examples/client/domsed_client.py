@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("werkzeug")
 log.setLevel(logging.WARNING)
-default_api_endpoint = 'http://extendedapi-svc.domino-field.svc.cluster.local'
+default_api_endpoint = 'http://domino-extensions-api-svc.domino-field.svc.cluster.local'
 api_endpoint = os.environ.get('DOMSED_WEBCLIENT_ENDPOINT',default_api_endpoint)
 
 

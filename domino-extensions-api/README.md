@@ -5,23 +5,7 @@
 This library enables adding new API endpoints to support customer requirements 
 
 ## Installation
-
-From the root folder of this project run the following commands:
-
-1. First publish the image
-```shell
-tag="${tag:-latest}"
-operator_image="${operator_image:-quay.io/domino/extendedapi}"
-docker build -f ./Dockerfile -t ${operator_image}:${tag} .
-docker push ${operator_image}:${tag}
-```
-
-or run
-
-```shell
-./create_and_push_docker_image.sh ${tag}
-```
-2. ## Use Helm to Install
+1. ## Use Helm to Install
 Check if you have domino-field namespace in the current cluster 
 ```shell
 kubectl get ns
@@ -37,13 +21,13 @@ Install using Helm
 export field_namespace=domino-field
 helm install -f helm/extendedapi/values.yaml extendedapi helm/extendedapi -n ${field_namespace}
 ```
-3. To upgrade use helm
+2. To upgrade use helm
 ```shell
 export field_namespace=domino-field
 helm upgrade -f helm/extendedapi/values.yaml extendedapi helm/extendedapi -n ${field_namespace}
 ```
 
-4. To delete use helm 
+3. To delete use helm 
 
 ```shell
 export field_namespace=domino-field
