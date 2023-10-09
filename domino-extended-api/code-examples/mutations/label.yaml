@@ -1,0 +1,13 @@
+apiVersion: apps.dominodatalab.com/v1alpha1
+kind: Mutation
+metadata:
+  name: label
+  namespace: domino-platform
+rules:
+- # Insert label
+  modifyLabel:
+    key: "foo.com/bar"
+    value: "out"
+  # Remove label
+  modifyLabel:
+    key: "foo.com/bar"

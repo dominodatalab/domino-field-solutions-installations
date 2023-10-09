@@ -6,8 +6,8 @@ spec:
   secretName: "{{ .Values.env.name }}-certs"
   dnsNames:
   - "{{ .Values.env.service }}"
-  - "{{ .Values.env.service }}.{{ .Values.env.namespace.platform }}"
-  - "{{ .Values.env.service }}.{{ .Values.env.namespace.platform }}.svc"
+  - "{{ .Values.env.service }}.{{ .Values.env.namespace.field }}"
+  - "{{ .Values.env.service }}.{{ .Values.env.namespace.field }}.svc"
   issuerRef:
     name: "selfsigned-{{ .Values.env.name }}"
 ---

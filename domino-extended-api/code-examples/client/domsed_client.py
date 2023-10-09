@@ -1,11 +1,10 @@
 from typing import Dict,List
 import json
-import sys
 import requests
 import os
 import yaml
-from urllib.parse import urlparse
 import logging
+
 logger = logging.getLogger("domsed_client")
 lvl = logging.getLevelName(os.environ.get("LOG_LEVEL", "WARNING"))
 logging.basicConfig(
@@ -14,20 +13,17 @@ logging.basicConfig(
 )
 log = logging.getLogger("werkzeug")
 log.setLevel(logging.WARNING)
+default_api_endpoint = 'http://extendedapi-svc.domino-field.svc.cluster.local'
+api_endpoint = os.environ.get('DOMSED_WEBCLIENT_ENDPOINT',default_api_endpoint)
+
+
 def list():
-    api_key = os.environ['DOMINO_USER_API_KEY']
-    api_endpoint = os.environ.get('DOMSED_WEBCLIENT_ENDPOINT',
-                                  'http://domsed-webclient-svc.domino-platform.svc.cluster.local')
-    parsed_uri = urlparse(api_endpoint)
-
-
+    auth_key = requests.get(os.environ.get('DOMINO_API_PROXY') + '/access-token').text
     listing_url = f'{api_endpoint}/mutation/list'
     print('Listing Mutations\n')
-    resp = requests.get(listing_url, headers={"domino_api_key": api_key, "Host": parsed_uri.netloc},
-                         verify=False)
+    resp = requests.get(listing_url, headers={"Authorization": f"Bearer {auth_key}"})
 
     if(resp.status_code==200):
-
         mutations_json:Dict = resp.json()
         mutations:List = mutations_json['items']
         for m in mutations:
@@ -39,15 +35,10 @@ def list():
         logger.warning('Error :' + str(resp.text))
 
 def get(mutation_name):
-    api_key = os.environ['DOMINO_USER_API_KEY']
-    api_endpoint = os.environ.get('DOMSED_WEBCLIENT_ENDPOINT',
-                                  'http://domsed-webclient-svc.domino-platform.svc.cluster.local')
-    parsed_uri = urlparse(api_endpoint)
-
+    auth_key = requests.get(os.environ.get('DOMINO_API_PROXY') + '/access-token').text
     get_url = f'{api_endpoint}/mutation/{mutation_name}'
     logger.warning(f'Get Mutation{mutation_name}')
-    resp = requests.get(get_url, headers={"domino_api_key": api_key, "Host": parsed_uri.netloc},
-                         verify=False)
+    resp = requests.get(get_url,  headers={"Authorization": f"Bearer {auth_key}"})
     if(resp.status_code==200):
         print(f'Printing Mutation: {mutation_name}\n')
         print(resp.text)
@@ -57,15 +48,10 @@ def get(mutation_name):
         logger.warning('Error :' + str(resp.text))
 
 def delete(mutation_name):
-    api_key = os.environ['DOMINO_USER_API_KEY']
-    api_endpoint = os.environ.get('DOMSED_WEBCLIENT_ENDPOINT',
-                                  'http://domsed-webclient-svc.domino-platform.svc.cluster.local')
-    parsed_uri = urlparse(api_endpoint)
-
+    auth_key = requests.get(os.environ.get('DOMINO_API_PROXY') + '/access-token').text
     delete_url = f'{api_endpoint}/mutation/{mutation_name}'
     logger.warning(f'Deleting Mutation{mutation_name}')
-    resp = requests.delete(delete_url, headers={"domino_api_key": api_key, "Host": parsed_uri.netloc},
-                         verify=False)
+    resp = requests.delete(delete_url, headers={"Authorization": f"Bearer {auth_key}"})
     if(resp.status_code==200):
         print(f'Deleted Mutation {mutation_name}')
         logger.warning(resp.text)
@@ -84,23 +70,15 @@ def apply_file(mutation_file):
             mutation = json.loads(f.readlines())
     else:
         logger.warning('Invalid file format. Must be YAML or JSON')
-        exit(1)    
+        exit(1)
     apply(mutation)
 
 
 def apply(mutation):
-    json_formatted_str = json.dumps(mutation, indent=2)
-    headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
-    api_key = os.environ['DOMINO_USER_API_KEY']
-    api_endpoint = os.environ.get('DOMSED_WEBCLIENT_ENDPOINT',
-                                  'http://domsed-webclient-svc.domino-platform.svc.cluster.local')
-    parsed_uri = urlparse(api_endpoint)
+    auth_key = requests.get(os.environ.get('DOMINO_API_PROXY') + '/access-token').text
     publish_url = f'{api_endpoint}/mutation/apply'
     logger.warning('Publishing Mutation To Domsed')
-    resp = requests.post(publish_url, json=mutation, headers={"domino_api_key": api_key, 
-                                                              "Host": parsed_uri.netloc,
-                                                              "Content-type": "application/json", 
-                                                              "Accept": "text/plain"})
+    resp = requests.post(publish_url, json=mutation, headers={"Authorization": f"Bearer {auth_key}"})
     if(resp.status_code==200):
         print('Applied Mutation')
         print(resp.text)
@@ -108,4 +86,3 @@ def apply(mutation):
         logger.warning('Error Publishing Mutation')
         logger.warning('Status Code :' + str(resp.status_code))
         logger.warning('Error :' + str(resp.text))
-    
