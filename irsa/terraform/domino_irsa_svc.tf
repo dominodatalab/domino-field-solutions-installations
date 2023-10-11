@@ -16,7 +16,7 @@ data "aws_iam_policy_document" "domino-eks-irsa-role-trust-policy" {
 }
 
 resource "aws_iam_role" "domino-irsa-svc" {
-    name = "domino-irsa-svc"
+    name = var.irsa-svc-role-name
     assume_role_policy = data.aws_iam_policy_document.domino-eks-irsa-role-trust-policy.json
 }
 
@@ -39,7 +39,7 @@ data "aws_iam_policy_document" "domino-irsa-svc-policy" {
 }
 
 resource "aws_iam_policy" "domino-irsa-svc-policy" {
-  name = "domino-irsa-svc-policy"
+  name = "${var.irsa-svc-role-name}-policy"
   policy = data.aws_iam_policy_document.domino-irsa-svc-policy.json
 }
 

@@ -13,7 +13,7 @@ data "aws_iam_policy_document" "workload-role-trust-policy" {
 
 resource "aws_iam_role" "irsa-workload-role" {
     provider = aws.asset-acct
-    name = "irsa-workload-role"
+    name = var.irsa-workload-role-name
     assume_role_policy = data.aws_iam_policy_document.workload-role-trust-policy.json
 }
 
@@ -28,7 +28,7 @@ data "aws_iam_policy_document" "irsa-workload-example-policy" {
 
 resource "aws_iam_policy" "irsa-workload-example-policy" {
     provider = aws.asset-acct
-    name = "irsa-workload-example-policy"
+    name = "${var.irsa-workload-role-name}-policy"
     policy = data.aws_iam_policy_document.irsa-workload-example-policy.json
 }
 

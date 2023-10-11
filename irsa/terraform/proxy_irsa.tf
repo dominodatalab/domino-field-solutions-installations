@@ -21,7 +21,7 @@ data "aws_iam_policy_document" "irsa-proxy-role-trust-policy" {
 }
 
 resource "aws_iam_role" "domino-irsa-proxy" {
-    name = "domino-irsa-proxy-svc"
+    name = "${var.irsa-proxy-role-prefix}-${var.irsa-workload-role-name}"
     assume_role_policy = data.aws_iam_policy_document.irsa-proxy-role-trust-policy.json
 }
 
@@ -33,7 +33,7 @@ data "aws_iam_policy_document" "domino-irsa-proxy-policy" {
 }
 
 resource "aws_iam_policy" "domino-irsa-proxy-policy" {
-    name = "domino-irsa-proxy-policy"
+    name = "${var.irsa-proxy-role-prefix}-${var.irsa-workload-role-name}-policy"
     policy = data.aws_iam_policy_document.domino-irsa-proxy-policy.json
 }
 
