@@ -14,7 +14,7 @@ variable "irsa-proxy-role-list" {
 }
 
 variable "irsa-svc-role-name" {
-    default = "domino-irsa-svc"
+    default = "swdemo24499-domino-irsa-svc"
 }
 
 variable "irsa-proxy-role-prefix" {
@@ -22,5 +22,5 @@ variable "irsa-proxy-role-prefix" {
 }
 
 variable "irsa-workload-role-name" {
-    default = "irsa-workload-role"
+    default = "swdemo24499-irsa-workload-role-2"
 }

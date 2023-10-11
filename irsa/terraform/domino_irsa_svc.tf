@@ -11,7 +11,12 @@ data "aws_iam_policy_document" "domino-eks-irsa-role-trust-policy" {
         test = "StringEquals"
         variable = "${replace(data.aws_eks_cluster.domino-cluster.identity[0].oidc[0].issuer,"https://","")}:sub"
         values = ["system:serviceaccount:${var.domino-irsa-namespace}:irsa"]
-      }  
+      }
+      condition {
+        test = "StringEquals"
+        variable = "${replace(data.aws_eks_cluster.domino-cluster.identity[0].oidc[0].issuer,"https://","")}:aud"
+        values = ["sts.amazonaws.com"]
+      }
     }
 }
 
