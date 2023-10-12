@@ -12,16 +12,11 @@ data "aws_iam_policy_document" "domino-eks-irsa-role-trust-policy" {
         variable = "${replace(data.aws_eks_cluster.domino-cluster.identity[0].oidc[0].issuer,"https://","")}:sub"
         values = ["system:serviceaccount:${var.domino-irsa-namespace}:irsa"]
       }
-      condition {
-        test = "StringEquals"
-        variable = "${replace(data.aws_eks_cluster.domino-cluster.identity[0].oidc[0].issuer,"https://","")}:aud"
-        values = ["sts.amazonaws.com"]
-      }
     }
 }
 
 resource "aws_iam_role" "domino-irsa-svc" {
-    name = var.irsa-svc-role-name
+    name = local.svc-role-name
     assume_role_policy = data.aws_iam_policy_document.domino-eks-irsa-role-trust-policy.json
 }
 
@@ -39,12 +34,12 @@ data "aws_iam_policy_document" "domino-irsa-svc-policy" {
         "iam:UpdateAssumeRolePolicy"        
       ]
       effect = "Allow"
-      resources = length(var.irsa-proxy-role-list) > 0 ? var.irsa-proxy-role-list : ["arn:aws:iam::${data.aws_caller_identity.domino-eks-acct.account_id}:role/*"]
+      resources = concat(module.irsa_proxy_role1[*].proxy-role-arn,module.irsa_proxy_role2[*].proxy-role-arn,module.irsa_proxy_role3[*].proxy-role-arn)
     }
 }
 
 resource "aws_iam_policy" "domino-irsa-svc-policy" {
-  name = "${var.irsa-svc-role-name}-policy"
+  name = "${local.svc-role-name}-policy"
   policy = data.aws_iam_policy_document.domino-irsa-svc-policy.json
 }
 
