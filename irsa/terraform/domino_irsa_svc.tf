@@ -34,7 +34,7 @@ data "aws_iam_policy_document" "domino-irsa-svc-policy" {
         "iam:UpdateAssumeRolePolicy"        
       ]
       effect = "Allow"
-      resources = concat(module.irsa_proxy_role1[*].proxy-role-arn,module.irsa_proxy_role2[*].proxy-role-arn,module.irsa_proxy_role3[*].proxy-role-arn)
+      resources = concat(module.irsa_proxy_role1[*].proxy-role-arn,module.irsa_proxy_role2[*].proxy-role-arn,module.irsa_proxy_role3[*].proxy-role-arn,module.irsa_proxy_role4[*].proxy-role-arn)
     }
 }
 

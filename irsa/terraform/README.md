@@ -9,6 +9,7 @@ Create an IAM OIDC provider for your cluster using [eksctl or AWS Management Con
 
 ## Optional (but recommended) Pre-requisites
 
+
 Create the IAM policies that will be associated with the workload roles. Update the [irsa_workload_files.tf](irsa_workload_files.tf) file with the name of the policy to be associated
 with each workload role.
 

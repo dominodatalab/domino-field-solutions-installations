@@ -107,7 +107,7 @@ metadata:
 spec:
   containers:
     - name: foo
-      image: busybox:unstable
+      image: busybox
 EOF
 ```
 
