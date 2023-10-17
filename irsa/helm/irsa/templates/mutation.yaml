@@ -8,7 +8,7 @@ rules:
   - app.kubernetes.io/name in (spark,ray,dask)
   matchBuilds: false
   modifyLabel:
-    key: dominodatalab.com/cluster-workload-type
+    key: dominodatalab.com/workload-type
     value: cluster
 - labelSelectors:
   - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
