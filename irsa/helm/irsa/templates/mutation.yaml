@@ -5,11 +5,26 @@ metadata:
   namespace: {{.Values.env.namespace.platform}}
 rules:
 - labelSelectors:
-  - app.kubernetes.io/name in (spark,ray,dask)
+  - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
   matchBuilds: false
   modifyLabel:
-    key: dominodatalab.com/cluster-workload-type
-    value: cluster
+    key: dominodatalab.com/irsa-workload-type
+    value: edge-workload
+- labelSelectors:
+  - "app.kubernetes.io/name in (spark,ray,dask)"
+  - "app.kubernetes.io/component==worker"
+  matchBuilds: false
+  modifyLabel:
+    key: dominodatalab.com/irsa-workload-type
+    value: cluster-worker
+- labelSelectors:
+  - "app.kubernetes.io/name in (spark,ray,dask)"
+  - "app.kubernetes.io/component==head"
+  matchBuilds: false
+  modifyLabel:
+    key: dominodatalab.com/irsa-workload-type
+    value: cluster-master
+
 - labelSelectors:
   - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
   insertVolumes:
@@ -70,6 +85,9 @@ rules:
   insertVolumeMounts:
     containerSelector:
     - run
+    - ray
+    - spark
+    - dask
     volumeMounts:
     - name: aws-config-file
       mountPath: /var/run/.aws
@@ -91,6 +109,8 @@ rules:
     - run
     - aws-config-file-generator
     env:
+    - name: DOMINO_API_PROXY_PORT
+      value: "8899"
     - name: AWS_WEB_IDENTITY_TOKEN_FILE
       value: /var/run/secrets/eks.amazonaws.com/serviceaccount/token
     - name: AWS_CONFIG_FILE
