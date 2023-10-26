@@ -60,44 +60,18 @@ rules:
       image: "{{ .Values.image.repository }}/{{ .Values.image.clientContainer }}:{{ .Values.image.clientAppVersion }}"
       name: aws-config-file-generator
       imagePullPolicy: Always
-      volumeMounts:
-        - name: aws-config-file
-          mountPath: /var/run/.aws
-        - name: irsa-logs
-          mountPath: /var/log/irsa
-        - name: aws-user-token
-          mountPath: /var/run/secrets/eks.amazonaws.com/serviceaccount/
-          readOnly: true
-        - name: podinfo
-          mountPath: /var/run/podinfo
-          readOnly: true
-        - name: irsa-ssl-certs
-          mountPath: /etc/ssl/certs/irsa
-          readOnly: true
-      env:
-        - name: POD_INFO_PATH
-          value: /var/run/podinfo/labels
-        - name: DOMINO_API_PROXY
-          value: http://localhost:8899
 
 - labelSelectors:
   - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
   insertVolumeMounts:
-    containerSelector:
-    - run
-    - ray
-    - spark
-    - dask
     volumeMounts:
     - name: aws-config-file
       mountPath: /var/run/.aws
-      readOnly: true
     - name: aws-user-token
       mountPath: /var/run/secrets/eks.amazonaws.com/serviceaccount/
       readOnly: true
     - name: irsa-logs
       mountPath: /var/log/irsa
-      readOnly: true
     - name: podinfo
       mountPath: /var/run/podinfo
       readOnly: true
@@ -105,10 +79,11 @@ rules:
       mountPath: /etc/ssl/certs/irsa
       readOnly: true
   modifyEnv:
-    containerSelector:
-    - run
-    - aws-config-file-generator
     env:
+    - name: POD_INFO_PATH
+      value: /var/run/podinfo/labels
+    - name: DOMINO_API_PROXY
+      value: http://localhost:8899
     - name: DOMINO_API_PROXY_PORT
       value: "8899"
     - name: AWS_WEB_IDENTITY_TOKEN_FILE

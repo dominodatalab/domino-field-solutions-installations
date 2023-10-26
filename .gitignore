@@ -159,7 +159,9 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 irsa/.DS_Store
+irsa/terraform/.terraform/
 domino-extended-api/.DS_Store
 domino-extended-api/helm/.DS_Store
 
 .idea/
+irsa/terraform/.terraform.lock.hcl

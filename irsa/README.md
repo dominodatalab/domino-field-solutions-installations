@@ -1,8 +1,15 @@
 ## Pre-requisites
+
+> **WARNING** -  You need Boto3 [SDK](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts-minimum-sdk.html) above a minimum version for IRSA to work
+> You will experience strange errors if your SDK version is lower despite having the right configurations
+> And example is `botocore.exceptions.PartialCredentialsError: Partial credentials found in assume-role, missing: source_profile or credential_source`
+
+
 Create a namespace domino-field
 ```
 kubectl create ns domino-field
 kubectl label namespace domino-field  domino-compute=true
+kubectl label namespace domino-field  domino-platform=true
 ```
 
 ## Delete IRSA
@@ -10,7 +17,7 @@ If you have already installed IRSA and want to delete it for reinstallation
 ```
 helm delete irsa -n domino-field
 export compute_namespace=domino-compute
-kubectl delete secret irsa-certs -n {domino-field }
+kubectl delete secret irsa-certs -n ${compute_namespace}
 ```
 > ***Attention***:  **After reinstalling IRSA you will need to recreate the mappings**
 
@@ -33,9 +40,19 @@ helm install -f ./values.yaml -n ${field_namespace} irsa helm/irsa
 
 d. Copy the `irsa-certs` secret from the `domino-field` namespace to the `domino-compute` namespace
 ```shell
-kubectl get secret irsa-certs --namespace=domino-field -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
+kubectl get secret irsa-certs --namespace=${field_namespace} -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
 ```
 This allows the IRSA service to become SSL enabled and invokable from the workloads in the `domino-compute` namespace
+
+## IRSA Update
+
+For helm updates run 
+```shell
+# Use the default ./helm/irsa/values.yaml
+helm upgrade irsa helm/irsa -n ${field_namespace}
+#or
+helm upgrade -f ./values.yaml irsa helm/irsa -n ${field_namespace}
+```
 
 ## Create Mappings
 
