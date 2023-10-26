@@ -16,6 +16,7 @@ env:
   aws_default_region: <AWS_REGION>
   aws_region: <AWS_REGION>
   aws_sts_regional_endpoints: regional
+  govcloud: false
   namespace:
     platform: domino-platform
     compute: domino-compute
