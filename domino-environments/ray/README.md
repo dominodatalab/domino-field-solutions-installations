@@ -60,7 +60,8 @@ In the "Supported Cluster Settings" select Ray
 
 
 ## GPU Support
-Add the following to the `Dockerfile` instruction set
+Add the following to the `Dockerfile` instruction set for both compute and cluster environment definitions where GPU
+support is needed
 
 ````shell
 USER root
