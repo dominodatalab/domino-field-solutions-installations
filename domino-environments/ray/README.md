@@ -53,7 +53,7 @@ rstudio:
 
 ### (Custom) Base Image  
 ```
-quay.io/domino/cluster-environment-images:ray2.4.0-py3.9-domino5.7
+quay.io/domino/compute-environment-images:ubuntu20-py3.9-r4.3-ray2.4.0-domino5.7
 ```
 In the "Supported Cluster Settings" select Ray
 ![Enable Ray Cluster](supported_cluster_settings.png)
