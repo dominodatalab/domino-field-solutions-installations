@@ -65,7 +65,6 @@ support is needed
 
 ````shell
 USER root
-RUN pip install mlflow==2.3.2
 RUN pip install torchmetrics 
 RUN pip install pytorch_lightning 
 RUN pip install install lightning-bolts 
