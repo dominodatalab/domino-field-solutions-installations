@@ -65,7 +65,6 @@ support is needed
 
 ````shell
 USER root
-RUN pip install mlflow==2.3.2
 RUN pip install torchmetrics 
 RUN pip install pytorch_lightning 
 RUN pip install install lightning-bolts 
@@ -178,5 +177,36 @@ RUN pip install torch torchvision tensortrade
 RUN pip install tblib
 RUN pip install pandas==1.4.1
 RUN pip install nvidia-ml-py3
+RUN pip install pystan numpyro[cuda] -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html 
 USER ubuntu
 ````
+## Non GPU Environments
+
+For the non-gpu environments use the following Dockerfile
+
+```shell
+USER root
+RUN pip install torchmetrics 
+RUN pip install pytorch_lightning 
+RUN pip install install lightning-bolts 
+# Install Tensorflow
+RUN pip install tensorflow --user
+
+# Install Jupyter-ai 
+RUN pip install 'jupyter-ai>=1.0,<2.0' --user
+
+#python libraries
+RUN pip install pytorch-lightning
+RUN pip install torchmetrics
+RUN pip install pytorch-lightning-bolts
+RUN pip install git+https://github.com/PytorchLightning/lightning-bolts.git@master --upgrade
+RUN pip install torchvision
+RUN pip install GPUtil
+RUN pip install torch torchvision tensortrade
+#RUN pip install wandb
+RUN pip install tblib
+RUN pip install pandas==1.4.1
+RUN pip install nvidia-ml-py3
+RUN pip install numpyro pystan
+USER ubuntu
+```
