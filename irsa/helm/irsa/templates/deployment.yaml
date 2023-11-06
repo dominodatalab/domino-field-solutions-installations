@@ -46,6 +46,13 @@ spec:
           value: {{.Values.env.oidc_provider_audience}}
         ports:
         - containerPort: 6000
+        resources:
+          limits:
+            cpu: 1500m
+            memory: 4000Mi
+          requests:
+            cpu: 1500m
+            memory: 4000Mi
         livenessProbe:
           httpGet:
             path: /healthz
