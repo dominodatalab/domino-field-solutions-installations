@@ -10,6 +10,8 @@ spec:
   - "{{ .Values.env.service }}.{{ .Values.env.namespace.platform }}.svc"
   issuerRef:
     name: "selfsigned-{{ .Values.env.name }}-webhook"
+  duration: {{ .Values.certmanager.duration }}
+  renewBefore: {{ .Values.certmanager.renewBefore }}
 ---
 
 apiVersion: cert-manager.io/v1

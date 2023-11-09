@@ -9,6 +9,27 @@ rules:
   - "mutations"
   verbs:
   - "*"
+- apiGroups:
+  - apps
+  resources:
+  - "mutations"
+  verbs:
+  - "*"
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  - jobs
+  - deployments
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - "create"
 ---
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
@@ -32,6 +53,15 @@ rules:
   - "get"
   - "watch"
   - "list"
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  - jobs
+  - deployments
+  verbs:
+  - get
+  - list
 - apiGroups:
   - "rbac.authorization.k8s.io" 
   resources:
@@ -62,3 +92,9 @@ rules:
   - pods/exec
   verbs:
   - get
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - "create"

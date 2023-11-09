@@ -46,7 +46,6 @@ env:
 
 istio:
   enabled: false
-
 mutation:
   # k8s API client watcher timeout
   client_watcher_timeout: 120
@@ -59,3 +58,16 @@ mutation:
 
   # Kubernetes Mutation API request timeout
   timeoutSeconds: 10
+
+  # Number of seconds to wait before generating a mutation k8s event
+  # May have to be increased when the k8s API response lag is high
+  eventLagSeconds: 2
+
+  # Show user logs messages for mutations
+  userEventsEnabled: "True"
+
+# Cert manager certificate validity & rotation times
+# Leave as default unless specifically required to change
+certmanager:
+  duration: 4320h
+  renewBefore: 360h

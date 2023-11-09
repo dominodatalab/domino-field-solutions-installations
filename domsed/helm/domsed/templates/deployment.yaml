@@ -18,6 +18,7 @@ spec:
       labels:
         app: "{{ .Values.env.name }}-webhook"
         mongodb-replicaset-client: "true"
+        keycloak-client: "true"
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -36,6 +37,9 @@ spec:
           - --certfile=/ssl/tls.crt
           - --keyfile=/ssl/tls.key
           - --workers={{ .Values.gunicorn_workers }}
+          - --reload
+          - --reload-extra-file=/ssl/tls.crt
+          - --reload-extra-file=/ssl/tls.key
           - domsed.webhook:create_app()
         securityContext:
           runAsUser: 1000
@@ -58,15 +62,15 @@ spec:
             path: /healthz
             port: {{ .Values.webhook_port }}
             scheme: HTTPS
-          initialDelaySeconds: 20
-          failureThreshold: 2
+          initialDelaySeconds: 10
+          failureThreshold: 5
           timeoutSeconds: 5
         readinessProbe:
           httpGet:
             path: /healthz
             port: {{ .Values.webhook_port }}
             scheme: HTTPS
-          initialDelaySeconds: 20
+          initialDelaySeconds: 10
           failureThreshold: 2
           timeoutSeconds: 5
         resources:
@@ -90,6 +94,26 @@ spec:
           value: mongodb-replicaset.{{ .Values.env.namespace.platform }}.svc.{{ .Values.cluster_domain}}:27017
         - name: LOG_LEVEL
           value: {{ .Values.log_level }}
+        - name: KEYCLOAK_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: keycloak-http
+              optional: true
+        - name: KEYCLOAK_HOST
+          value: keycloak-http.{{ .Values.env.namespace.platform }}.svc.{{ .Values.cluster_domain}}:80
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: EVENT_LAG_SECONDS
+          value: "{{ .Values.mutation.eventLagSeconds }}"
+        - name: USER_EVENTS_ENABLED
+          value: "{{ .Values.mutation.userEventsEnabled }}"
         volumeMounts:
           - name: certs
             mountPath: /ssl
