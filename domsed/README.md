@@ -41,11 +41,9 @@ helm delete domsed -n ${platform_namespace}
 kubectl label namespace ${compute_namespace} "operator-enabled"-
 ```
 
-3. Reinstall Domsed
+c. Install Domsed
 
-### Install Domsed
 ```shell
-cd domsed
 export platform_namespace=domino-platform
 export compute_namespace=domino-compute
 helm install -f values.yaml domsed helm/domsed -n ${platform_namespace}
@@ -53,13 +51,18 @@ kubectl label namespace ${compute_namespace} operator-enabled=true
 ```
 
 
-### Delete Domsed
+3. Upgrade Domsed
+
+### Upgrade Domsed
+To upgrade the version of domsed, pull the updated domsed chart from this git repo for your target release
+version before running the upgrade. Note your local `values.yaml` file will also need to be updated to point to the
+release image version
+
 ```shell
-cd $PROJECT_ROOT_DIR/domsed/
+cd domsed
 export platform_namespace=domino-platform
 export compute_namespace=domino-compute
-helm install -f values.yaml domsed helm/domsed -n ${platform_namespace}
-kubectl label namespace ${compute_namespace} operator-enabled=true
+helm upgrade -f install/values.yaml domsed helm/domsed -n ${platform_namespace}
 ```
 
 ## Test Domsed

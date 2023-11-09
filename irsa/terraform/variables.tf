@@ -10,7 +10,7 @@ variable "domino-irsa-namespace" {
 
 variable "resource-prefix" {
     type = string
-    default = "prod-field-domino"
+    default = "sw-domino"
 }
 
 variable "irsa-wl-role-suffix" {

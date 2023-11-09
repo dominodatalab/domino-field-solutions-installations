@@ -14,7 +14,8 @@ kubectl label namespace domino-field  domino-platform=true
 
 ## Delete IRSA
 If you have already installed IRSA and want to delete it for reinstallation
-```
+
+```shell
 helm delete irsa -n domino-field
 export compute_namespace=domino-compute
 kubectl delete secret irsa-certs -n ${compute_namespace}

@@ -8,13 +8,13 @@ image:
 env:
   name: irsa
   service: irsa-svc
-  eks_aws_account: '<EKS_ACCOUNT_NO>'
-  assets_aws_account: '<ASSETS_ACCOUNT_NO>'
-  eks_service_role_name: <IRSA_SERVICE_ROLE>
-  oidc_provider: oidc.eks.<AWS_REGION>.amazonaws.com/id/<ID>
+  eks_aws_account: '946429944765'
+  assets_aws_account: '946429944765'
+  eks_service_role_name: sw-domino-irsa-svc-role
+  oidc_provider: oidc.eks.us-west-2.amazonaws.com/id/CE43713C833C45CD4B04FB618078555B
   oidc_provider_audience: sts.amazonaws.com
-  aws_default_region: <AWS_REGION>
-  aws_region: <AWS_REGION>
+  aws_default_region: us-west-2
+  aws_region: us-west-2
   aws_sts_regional_endpoints: regional
   govcloud: false
   namespace:
