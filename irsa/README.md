@@ -6,7 +6,8 @@
 
 
 Create a namespace domino-field
-```
+
+```shell
 kubectl create ns domino-field
 kubectl label namespace domino-field  domino-compute=true
 kubectl label namespace domino-field  domino-platform=true

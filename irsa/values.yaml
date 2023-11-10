@@ -11,7 +11,7 @@ env:
   eks_aws_account: '946429944765'
   assets_aws_account: '946429944765'
   eks_service_role_name: sw-domino-irsa-svc-role
-  oidc_provider: oidc.eks.us-west-2.amazonaws.com/id/CE43713C833C45CD4B04FB618078555B
+  oidc_provider: oidc.eks.us-west-2.amazonaws.com/id/412311D64F34C4375459CBBAD6534975
   oidc_provider_audience: sts.amazonaws.com
   aws_default_region: us-west-2
   aws_region: us-west-2
