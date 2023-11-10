@@ -4,7 +4,7 @@ image:
   appVersion: v1.3.1-release
   pullPolicy: Always
 
-replicas: 1
+replicas: 5
 
 cluster_domain: cluster.local
 imagePullSecrets: [{"name": "domino-quay-repos"}]
