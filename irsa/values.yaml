@@ -1,25 +1,29 @@
 image:
   repository: quay.io/domino
   serverContainer: irsa
+  memcachedContainer: memcached
   clientContainer: irsa-client
-  serverAppVersion: v1.4.0-release
-  clientAppVersion: v1.4.0-release
+  serverAppVersion: v1.5.0-release
+  memcachedVersion: '1.6.22'
+  clientAppVersion: v1.5.0-release
   pullPolicy: Always
 env:
   name: irsa
   service: irsa-svc
-  eks_aws_account: '946429944765'
-  assets_aws_account: '946429944765'
-  eks_service_role_name: sw-domino-irsa-svc-role
-  oidc_provider: oidc.eks.us-west-2.amazonaws.com/id/412311D64F34C4375459CBBAD6534975
+  eks_aws_account: '<EKS_ACCOUNT_NO>'
+  assets_aws_account: '<ASSETS_ACCOUNT_NO>'
+  eks_service_role_name: <IRSA_SERVICE_ROLE>
+  oidc_provider: oidc.eks.<AWS_REGION>.amazonaws.com/id/<ID>
   oidc_provider_audience: sts.amazonaws.com
-  aws_default_region: us-west-2
-  aws_region: us-west-2
+  aws_default_region: <AWS_REGION>
+  aws_region: <AWS_REGION>
   aws_sts_regional_endpoints: regional
   govcloud: false
   namespace:
     platform: domino-platform
     compute: domino-compute
     field: domino-field
+  memcached:
+    max_memory: 1024 # max mem for memcached in MB    
 istio:
   enabled: false

@@ -166,3 +166,8 @@ domino-extended-api/helm/.DS_Store
 .idea/
 irsa/terraform/.terraform.lock.hcl
 irsa/values.yaml
+
+# Terraform
+terraform/.terraform
+terraform/.*lock*
+terraform/*tfstate*
