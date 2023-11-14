@@ -1,0 +1,120 @@
+apiVersion: apps.dominodatalab.com/v1alpha1
+kind: Mutation
+metadata:
+  name: {{ .Values.env.name }}
+  namespace: {{.Values.env.namespace.platform}}
+rules:
+- labelSelectors:
+  - app.kubernetes.io/name in (spark,ray,dask)
+  matchBuilds: false
+  modifyLabel:
+    key: dominodatalab.com/workload-type
+    value: cluster
+- labelSelectors:
+  - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
+  modifySecurityContext:
+    context:
+      fsGroup: 12574
+  insertVolumes:
+  - name: irsa-ssl-certs
+    secret:
+      secretName: "{{.Values.env.name}}-certs"
+  - name: irsa-logs
+    emptyDir:
+      sizeLimit: 1000Mi
+  - name: aws-config-file
+    emptyDir:
+      sizeLimit: 500Mi
+  - name: podinfo
+    downwardAPI:
+      items:
+        - path: "labels"
+          fieldRef:
+            fieldPath: metadata.labels
+  - name: aws-user-token
+    projected:
+      defaultMode: 422
+      sources:
+      - serviceAccountToken:
+          path: token
+          expirationSeconds: 86400
+          audience: sts.amazonaws.com
+- labelSelectors:
+  - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
+  insertContainer:
+    containerType: app
+    spec:
+      image: "{{ .Values.image.repository }}/{{ .Values.image.clientContainer }}:{{ .Values.image.clientAppVersion }}"
+      name: aws-config-file-generator
+      imagePullPolicy: Always
+  modifyEnv:
+    containerSelector:
+      - aws-config-file-generator
+    env:
+      - name: POD_INFO_PATH
+        value: /var/run/podinfo/labels
+      - name: DOMINO_API_PROXY
+        value: http://localhost:8899
+  insertVolumeMounts:
+    containerSelector:
+    - aws-config-file-generator
+    volumeMounts:
+    - name: aws-config-file
+      mountPath: /var/run/.aws
+    - name: irsa-logs
+      mountPath: /var/log/irsa
+    - name: aws-user-token
+      mountPath: /var/run/secrets/eks.amazonaws.com/serviceaccount/
+      readOnly: true
+    - name: podinfo
+      mountPath: /var/run/podinfo
+      readOnly: true
+    - name: irsa-ssl-certs
+      mountPath: /etc/ssl/certs/irsa
+      readOnly: true
+- labelSelectors:
+  - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
+  insertVolumeMounts:
+    containerSelector:
+      - run
+    volumeMounts:
+      - name: aws-config-file
+        mountPath: /var/run/.aws
+        readOnly: true
+      - name: aws-user-token
+        mountPath: /var/run/secrets/eks.amazonaws.com/serviceaccount/
+        readOnly: true
+      - name: irsa-logs
+        mountPath: /var/log/irsa
+        readOnly: true
+      - name: podinfo
+        mountPath: /var/run/podinfo
+        readOnly: true
+      - name: irsa-ssl-certs
+        mountPath: /etc/ssl/certs/irsa
+        readOnly: true
+  modifyEnv:
+    containerSelector:
+    - run
+    - aws-config-file-generator
+    env:
+    - name: AWS_WEB_IDENTITY_TOKEN_FILE
+      value: /var/run/secrets/eks.amazonaws.com/serviceaccount/token
+    - name: AWS_CONFIG_FILE
+      value: /var/run/.aws/config
+    - name: DOMINO_IRSA_ENDPOINT
+      value: https://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/map_iam_roles_to_pod_sa
+    - name: AWS_DEFAULT_REGION
+      value: {{.Values.env.aws_default_region}}
+    - name: AWS_REGION
+      value: {{.Values.env.aws_region}}
+    - name: AWS_STS_REGIONAL_ENDPOINTS
+      value: {{.Values.env.aws_sts_regional_endpoints}}
+    - name: OIDC_PROVIDER
+      value: {{.Values.env.oidc_provider}}
+    - name: OIDC_PROVIDER_AUDIENCE
+      value: {{.Values.env.oidc_provider_audience}}
+    - name: DOMINO_IRSA_PROXY
+      value: http://localhost:6003
+    - name: DOMINO_IRSA_SSL_CERT
+      value: /etc/ssl/certs/irsa/tls.crt
