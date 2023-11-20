@@ -2,8 +2,8 @@ image:
   repository: quay.io/domino
   serverContainer: irsa
   clientContainer: irsa-client
-  serverAppVersion: mdoan_PS-10380-sa-memcache
-  clientAppVersion: mdoan_PS-10380-sa-memcache
+  serverAppVersion: v1.5.0-release
+  clientAppVersion: v1.5.0-release
   pullPolicy: Always
 env:
   name: irsa
@@ -11,7 +11,7 @@ env:
   eks_aws_account: '946429944765'
   assets_aws_account: '946429944765'
   eks_service_role_name: sw-domino-irsa-svc-role
-  oidc_provider: oidc.eks.us-west-2.amazonaws.com/id/38CD926DD26D51A24551C19B7F0CC88F
+  oidc_provider: oidc.eks.us-west-2.amazonaws.com/id/C7F107CAE94B194C9AF67A09A84B878B
   oidc_provider_audience: sts.amazonaws.com
   aws_default_region: us-west-2
   aws_region: us-west-2
@@ -22,4 +22,6 @@ env:
     compute: domino-compute
     field: domino-field
 istio:
+  enabled: false
+irsa_client_sidecar:
   enabled: false
