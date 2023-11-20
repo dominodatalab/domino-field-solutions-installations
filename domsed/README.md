@@ -62,7 +62,7 @@ release image version
 cd domsed
 export platform_namespace=domino-platform
 export compute_namespace=domino-compute
-helm upgrade -f install/values.yaml domsed helm/domsed -n ${platform_namespace}
+helm upgrade -f ./values.yaml domsed helm/domsed -n ${platform_namespace}
 ```
 
 ## Test Domsed

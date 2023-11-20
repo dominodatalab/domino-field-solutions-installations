@@ -54,7 +54,12 @@ rules:
   modifySecurityContext:
     context:
       fsGroup: 12574
-
+  insertContainer:
+    containerType: app
+    spec:
+      image: "{{ .Values.image.repository }}/{{ .Values.image.clientContainer }}:{{ .Values.image.clientAppVersion }}"
+      name: aws-config-file-generator
+      imagePullPolicy: Always
 
 - labelSelectors:
   - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
@@ -101,6 +106,3 @@ rules:
       value: http://localhost:6003
     - name: DOMINO_IRSA_SSL_CERT
       value: /etc/ssl/certs/irsa/tls.crt
-- labelSelectors:
-  - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
-
