@@ -2,8 +2,8 @@ image:
   repository: quay.io/domino
   serverContainer: irsa
   clientContainer: irsa-client
-  serverAppVersion: v1.4.0-release
-  clientAppVersion: v1.4.0-release
+  serverAppVersion: v1.5.0-release
+  clientAppVersion: v1.5.0-release
   pullPolicy: Always
 env:
   name: irsa
