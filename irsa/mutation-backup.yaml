@@ -54,13 +54,14 @@ rules:
   modifySecurityContext:
     context:
       fsGroup: 12574
+{{- if .Values.irsa_client_sidecar.enabled -}}
   insertContainer:
     containerType: app
     spec:
       image: "{{ .Values.image.repository }}/{{ .Values.image.clientContainer }}:{{ .Values.image.clientAppVersion }}"
       name: aws-config-file-generator
       imagePullPolicy: Always
-
+{{- end }}
 - labelSelectors:
   - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
   insertVolumeMounts:

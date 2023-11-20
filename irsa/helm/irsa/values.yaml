@@ -23,3 +23,5 @@ env:
     field: domino-field
 istio:
   enabled: false
+irsa_client_sidecar:
+  enabled: false
