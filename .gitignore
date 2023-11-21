@@ -168,3 +168,11 @@ irsa/terraform/.terraform.lock.hcl
 irsa/values.yaml
 irsa/values.yaml
 irsa/values-new.yaml
+
+# Terraform
+terraform/.terraform
+terraform/.*lock*
+terraform/*tfstate*
+
+# Helm per-deploy values files
+**/values-*.yaml
