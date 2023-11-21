@@ -4,6 +4,16 @@
 > You will experience strange errors if your SDK version is lower despite having the right configurations
 > And example is `botocore.exceptions.PartialCredentialsError: Partial credentials found in assume-role, missing: source_profile or credential_source`
 
+> **WARNING** - as of IRSA 1.5.1, there is a possibility of race conditions around updating the IAM role trust policy when using multiple Domino organizations where users in 
+> different organizations are attempting to use the same proxy role. If you have multiple users _in different Domino organizations_ attempting to use the same proxy roles, 
+> it's recommended to verify that one can use that role before actually running API operations. A snippet of code to check this can be found below:
+
+```python
+import boto3
+session = boto3.Session(profile_name="<ASSET_ROLE_NAME>")
+```
+
+(The usage of the asset role in the snippet above is intentional.)
 
 Create a namespace domino-field
 
@@ -166,3 +176,7 @@ You scale with multiple mappings for the same role in this fashion. This allows 
 a large number of simultaneous domino workloads despite each workload having a unique k8s service account.
 
 The mappings are deleted when the workload ends.
+
+## Example Usage
+
+You can find [example code for using IRSA credentials here](https://github.com/dominodatalab/ray-scaling/blob/main/ray-benchmarks.ipynb).

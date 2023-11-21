@@ -2,7 +2,9 @@ image:
   repository: quay.io/domino
   serverContainer: irsa
   clientContainer: irsa-client
-  serverAppVersion: v1.5.0-release
+  memcachedContainer: memcached
+  memcachedVersion: '1.6.22'
+  serverAppVersion: v1.5.1-release
   clientAppVersion: v1.5.0-release
   pullPolicy: Always
 env:
@@ -21,6 +23,8 @@ env:
     platform: domino-platform
     compute: domino-compute
     field: domino-field
+  memcached:
+    max_memory: 1024 # max mem for memcached in MB    
 istio:
   enabled: false
 irsa_client_sidecar:
