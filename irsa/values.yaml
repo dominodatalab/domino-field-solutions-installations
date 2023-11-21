@@ -5,6 +5,7 @@ image:
   serverAppVersion: v1.5.0-release
   clientAppVersion: v1.5.0-release
   pullPolicy: Always
+  
 env:
   name: irsa
   service: irsa-svc
