@@ -5,13 +5,15 @@
 > And example is `botocore.exceptions.PartialCredentialsError: Partial credentials found in assume-role, missing: source_profile or credential_source`
 
 > **WARNING** - as of IRSA 1.5.1, there is a possibility of race conditions around updating the IAM role trust policy when using multiple Domino organizations where users in 
-> different organizations are attempting to use the same proxy role. If you have multiple users _in different Domino organizations_ attempting to use the same assetrole, 
+> different organizations are attempting to use the same proxy role. If you have multiple users _in different Domino organizations_ attempting to use the same proxy roles, 
 > it's recommended to verify that one can use that role before actually running API operations. A snippet of code to check this can be found below:
 
 ```python
 import boto3
 session = boto3.Session(profile_name="<ASSET_ROLE_NAME>")
 ```
+
+(The usage of the asset role in the snippet above is intentional.)
 
 Create a namespace domino-field
 
