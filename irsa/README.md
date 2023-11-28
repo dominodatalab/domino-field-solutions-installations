@@ -84,7 +84,7 @@ kubectl get secret irsa-certs --namespace=${field_namespace} -o yaml | sed 's/na
 
 ## IRSA Rollback
 
-If you have to roll back the version of the IRSA deployment within your cluster, you can use the `helm rollback command`:
+If you have to roll back the version of the IRSA deployment within your cluster, you can use the `helm rollback` command:
 
 ```shell
 helm -n ${field_namespace} rollback irsa
