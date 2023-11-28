@@ -66,6 +66,32 @@ helm upgrade irsa helm/irsa -n ${field_namespace}
 helm upgrade -f ./values.yaml irsa helm/irsa -n ${field_namespace}
 ```
 
+**NOTE**: when upgrading from `v1.1.0` or earlier, it may be necessary to copy the SSL cert data from the field namespace into the compute namespace. To check, determine whether the `irsa-certs` Secret object exists within both namespaces:
+
+```shell
+kubectl -n ${field_namespace} get secret irsa-certs 
+```
+
+```shell
+kubectl -n ${compute_namespace} get secret irsa-certs
+```
+
+If the secret doesn't exist in the compute namespace, copy the secret data from the field namespace as follows:
+
+```shell
+kubectl get secret irsa-certs --namespace=${field_namespace} -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
+```
+
+## IRSA Rollback
+
+If you have to roll back the version of the IRSA deployment within your cluster, you can use the `helm rollback command`:
+
+```shell
+helm -n ${field_namespace} rollback irsa
+```
+
+If this is not successful, please contact Domino Professional Services. Do not attempt to use the helm chart within this repo for earlier versions of IRSA, as the chart objects are tailored around the IRSA version listed within the base [values.yaml](./helm/values.yaml) file. This chart is not intended to be backwards-compatible with earlier revisions of IRSA.
+
 ## Create Mappings
 
 Open the notebook [enablement.ipynb](./enablement.ipynb). There is a section called `## Add/Update Role Mapping (Only Domino Administrators can make this call)`
