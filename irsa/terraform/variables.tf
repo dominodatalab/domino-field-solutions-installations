@@ -10,7 +10,7 @@ variable "domino-irsa-namespace" {
 
 variable "resource-prefix" {
     type = string
-    default = "sw-domino"
+    default = "sw-domino-mlflow"
 }
 
 variable "irsa-wl-role-suffix" {
