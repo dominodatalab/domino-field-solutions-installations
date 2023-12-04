@@ -1,8 +1,8 @@
-{{- if not .Values.irsa_client_sidecar.enabled -}}
+{{- if .Values.irsa_client_sidecar.enabled -}}
 apiVersion: apps.dominodatalab.com/v1alpha1
 kind: Mutation
 metadata:
-  name: {{ .Values.env.name }}-sidecar
+  name: {{ .Values.env.name }}
   namespace: {{.Values.env.namespace.platform}}
 rules:
 - labelSelectors:
@@ -55,6 +55,13 @@ rules:
   modifySecurityContext:
     context:
       fsGroup: 12574
+  insertContainer:
+    containerType: app
+    spec:
+      image: "{{ .Values.image.repository }}/{{ .Values.image.clientContainer }}:{{ .Values.image.clientAppVersion }}"
+      name: aws-config-file-generator
+      imagePullPolicy: Always
+
 - labelSelectors:
   - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
   insertVolumeMounts:
@@ -100,5 +107,6 @@ rules:
       value: http://localhost:6003
     - name: DOMINO_IRSA_SSL_CERT
       value: /etc/ssl/certs/irsa/tls.crt
+
 
 {{- end }}
