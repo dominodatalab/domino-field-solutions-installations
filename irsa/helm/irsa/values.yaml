@@ -28,4 +28,4 @@ env:
 istio:
   enabled: false
 irsa_client_sidecar:
-  enabled: false
+  enabled: true
