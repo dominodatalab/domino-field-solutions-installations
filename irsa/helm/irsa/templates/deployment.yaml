@@ -45,7 +45,7 @@ spec:
         - name: OIDC_PROVIDER_AUDIENCE
           value: {{ .Values.env.oidc_provider_audience }}
         - name: FLASK_WORKERS
-          value: "{{ default 4 .Values.env.irsa_workers }}"
+          value: "{{ default 1 .Values.env.irsa_workers }}"
         ports:
         - containerPort: 6000
         resources:
