@@ -176,4 +176,6 @@ terraform/*tfstate*
 
 # Helm per-deploy values files
 **/values-*.yaml
-irsa/values.yaml
+
+irsa/terraform/terraform.tfstate
+irsa/terraform/terraform.tfstate.backup

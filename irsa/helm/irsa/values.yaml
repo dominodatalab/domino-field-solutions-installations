@@ -4,7 +4,7 @@ image:
   clientContainer: irsa-client
   memcachedContainer: memcached
   memcachedVersion: '1.6.22'
-  serverAppVersion: v1.5.1-release
+  serverAppVersion: v1.6.1-patch
   clientAppVersion: v1.5.0-release
   pullPolicy: Always
 env:
