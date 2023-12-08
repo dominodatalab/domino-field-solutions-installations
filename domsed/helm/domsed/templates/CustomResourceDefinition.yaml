@@ -420,6 +420,9 @@ spec:
                       user_mappings:
                         type: object
                         x-kubernetes-preserve-unknown-fields: true
+                      assume_sa_mapping:
+                        type: boolean
+                        default: false
                       default_sa:
                         type: string
                         default: ""

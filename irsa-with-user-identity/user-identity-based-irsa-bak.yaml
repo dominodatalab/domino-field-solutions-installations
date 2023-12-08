@@ -9,8 +9,11 @@ rules:
   cloudWorkloadIdentity:
     cloud_type: aws
     default_sa: ""
-    assume_sa_mapping: true
-  insertVolumeMounts:
+    user_mappings:
+      domino-wadkars: wadkars
+      domino-vaibhavd: vaibhavd
+      domino-marcd: marcd
+ insertVolumeMounts:
     volumeMounts:
     - mountPath: /var/run/.aws
       name: aws-config-file
