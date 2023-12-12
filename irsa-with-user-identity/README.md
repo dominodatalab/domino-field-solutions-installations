@@ -121,7 +121,7 @@ exactly as below
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: domino-wadkars
+  name: integration-test
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/my-role
 ```
@@ -133,10 +133,10 @@ kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
-  name: run-xyz-3
+  name: run-xyz-1
   namespace: domino-compute  
 spec:
-  serviceAccountName: domino-wadkars
+  serviceAccountName: integration-test
   containers:
   - name: main
     image: demisto/boto3py3:1.0.0.81279
@@ -147,7 +147,7 @@ EOF
 Now let us shell into this pod
 
 ```shell
-kubectl -n domino-compute exec -it run-xyz-3 -- sh
+kubectl -n domino-compute exec -it run-xyz-1 -- sh
 ```
 
 Now run the following commands inside the pod shell
