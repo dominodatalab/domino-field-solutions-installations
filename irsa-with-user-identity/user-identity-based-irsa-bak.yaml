@@ -1,0 +1,48 @@
+apiVersion: apps.dominodatalab.com/v1alpha1
+kind: Mutation
+metadata:
+  name: user-identity-based-irsa
+  namespace: domino-platform
+rules:
+- labelSelectors:
+  - dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)
+  cloudWorkloadIdentity:
+    cloud_type: aws
+    default_sa: ""
+    user_mappings:
+      domino-wadkars: wadkars
+      domino-vaibhavd: vaibhavd
+      domino-marcd: marcd
+ insertVolumeMounts:
+    volumeMounts:
+    - mountPath: /var/run/.aws
+      name: aws-config-file
+    - mountPath: /var/run/secrets/eks.amazonaws.com/serviceaccount/
+      name: aws-user-token
+  insertVolumes:
+  - emptyDir:
+      sizeLimit: 500Mi
+    name: aws-config-file
+  - name: aws-user-token
+    projected:
+      defaultMode: 422
+      sources:
+      - serviceAccountToken:
+          audience: sts.amazonaws.com
+          expirationSeconds: 86400
+          path: token
+  modifyEnv:
+    env:
+    - name: AWS_WEB_IDENTITY_TOKEN_FILE
+      value: /var/run/secrets/eks.amazonaws.com/serviceaccount/token
+    - name: AWS_CONFIG_FILE
+      value: /var/run/.aws/config
+    - name: AWS_DEFAULT_REGION
+      value: us-west-2
+    - name: AWS_REGION
+      value: us-west-2
+    - name: AWS_STS_REGIONAL_ENDPOINTS
+      value: regional
+  modifySecurityContext:
+    context:
+      fsGroup: 12574
