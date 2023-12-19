@@ -3,7 +3,7 @@
 > Check with your Domino CSM before using this capability. It is a significant departure from how Domino manages
 > pod identities and may not be suitable for your requirements. It is currently only tested upto Domino version 5.8
 
-1. Install [Domsed](../domsed/README.md)
+1. Install [Domsed](../domsed/README.md). It must be version `v1.3.2-release` . ***Also note that the CRD has changed so you will need to do a Helm update***
 2. For users needing to assume AWS role identities create service account per user in the `domino-compute` namespace. 
    The name of the service account should match the user-name
 

@@ -9,7 +9,9 @@ rules:
   cloudWorkloadIdentity:
     cloud_type: aws
     default_sa: ""
-    assume_sa_mapping: true
+    assume_sa_mapping: false
+    user_mappings:
+      sameer_wadkar: sameer-wadkar
   insertVolumeMounts:
     volumeMounts:
     - mountPath: /var/run/.aws
