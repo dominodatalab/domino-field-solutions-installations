@@ -16,14 +16,34 @@ rules:
   verbs:
   - "*"
 - apiGroups:
+  - apps.dominodatalab.com
+  resources:
+  - "validations"
+  verbs:
+  - "*"
+- apiGroups:
+  - apps
+  resources:
+  - "validations"
+  verbs:
+  - "*"
+- apiGroups:
   - apps
   resources:
   - replicasets
-  - jobs
   - deployments
   verbs:
   - get
   - list
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - delete  
 - apiGroups:
   - ""
   resources:
@@ -57,11 +77,20 @@ rules:
   - apps
   resources:
   - replicasets
-  - jobs
   - deployments
+  - statefulsets
   verbs:
   - get
   - list
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - delete  
 - apiGroups:
   - "rbac.authorization.k8s.io" 
   resources:

@@ -1,30 +1,31 @@
 image:
   repository: quay.io/domino
   container: domsed
-  appVersion: v1.2.0-release
+
+  appVersion: v1.3.2-release
   pullPolicy: Always
 
-replicas: 5
+replicas: 1
 
 cluster_domain: cluster.local
-imagePullSecrets: [{"name": "domino-quay-repos"}]
+imagePullSecrets: [{ "name": "domino-quay-repos" }]
 
-resources: 
+resources:
   limits:
+    cpu: 500m
+    memory: 1024Mi
+  requests:
     cpu: 250m
     memory: 512Mi
-  requests:
-    cpu: 125m
-    memory: 512Mi  
 
 # Number of gunicorn worker threads (gevent)
-gunicorn_workers: 3
+gunicorn_workers: 5
 
 # Worker log level
 log_level: INFO
 
 # Pod port (firewall exceptions may be required to change this)
-# By default, domino terraform will create a rule for 
+# By default, domino terraform will create a rule for
 #  the hephaestus webhook on this port
 webhook_port: 9443
 
@@ -37,7 +38,7 @@ env:
   namespace:
     platform: domino-platform
     compute: domino-compute
-  # Use the below for adding a toleration to the operator-webhook pod. 
+  # Use the below for adding a toleration to the operator-webhook pod.
   # tolerations:
   # - effect: NoSchedule
   #   key: domino
@@ -46,6 +47,7 @@ env:
 
 istio:
   enabled: false
+
 mutation:
   # k8s API client watcher timeout
   client_watcher_timeout: 120
@@ -61,7 +63,7 @@ mutation:
 
   # Number of seconds to wait before generating a mutation k8s event
   # May have to be increased when the k8s API response lag is high
-  eventLagSeconds: 2
+  eventLagSeconds: 1
 
   # Show user logs messages for mutations
   userEventsEnabled: "True"
