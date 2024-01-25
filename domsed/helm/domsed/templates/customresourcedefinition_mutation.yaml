@@ -285,9 +285,11 @@ spec:
                               type: string
                             value:
                               type: string
+                            valueFrom:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
                           required:
                             - name
-                            - value
                   enforceCpuLicenseLimit:
                     type: object
                     properties:
@@ -334,6 +336,13 @@ spec:
                     required:
                       - key
                       - value
+                  addClassName:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                    required:
+                    - name                        
                   modifySecurityContext:
                     type: object
                     properties:
