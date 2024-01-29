@@ -29,3 +29,8 @@ istio:
   enabled: false
 irsa_client_sidecar:
   enabled: true
+# Cert manager certificate validity & rotation times
+# Leave as default unless specifically required to change
+certmanager:
+  duration: 4320h
+  renewBefore: 360h
