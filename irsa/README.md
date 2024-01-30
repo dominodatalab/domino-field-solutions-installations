@@ -79,7 +79,8 @@ kubectl -n ${compute_namespace} get secret irsa-certs
 If the secret doesn't exist in the compute namespace, copy the secret data from the field namespace as follows:
 
 ```shell
-kubectl get secret irsa-certs --namespace=${field_namespace} -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
+kubectl -n ${compute_namespace} delete secret irsa-certs
+kubectl get secret irsa-certs -n ${field_namespace} -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
 ```
 
 ## IRSA Rollback
