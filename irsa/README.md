@@ -52,7 +52,8 @@ helm install -f ./values.yaml -n ${field_namespace} irsa helm/irsa
 
 d. Copy the `irsa-certs` secret from the `domino-field` namespace to the `domino-compute` namespace
 ```shell
-kubectl get secret irsa-certs --namespace=${field_namespace} -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
+kubectl -n ${compute_namespace} delete secret irsa-certs
+kubectl get secret irsa-certs -n ${field_namespace} -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
 ```
 This allows the IRSA service to become SSL enabled and invokable from the workloads in the `domino-compute` namespace
 
@@ -79,7 +80,8 @@ kubectl -n ${compute_namespace} get secret irsa-certs
 If the secret doesn't exist in the compute namespace, copy the secret data from the field namespace as follows:
 
 ```shell
-kubectl get secret irsa-certs --namespace=${field_namespace} -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
+kubectl -n ${compute_namespace} delete secret irsa-certs
+kubectl get secret irsa-certs -n ${field_namespace} -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
 ```
 
 ## IRSA Rollback
