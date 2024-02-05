@@ -177,7 +177,9 @@ If not refer to the next section
 
 #### Mapping K8s Service Account to a Domino User for Cloud Identity
 
-WORK IN PROGRESS. WATCH THIS SPACE FOR DETAILS
+If you want explicit mapping between K8s Service Account and Domino User Name run the following
+notebook [manage_mutations.ipynb](./client-notebooks/manage_mutations.ipynb)
+
 
 ### User Perspective
 
