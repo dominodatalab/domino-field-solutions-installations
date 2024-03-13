@@ -29,9 +29,6 @@ rules:
 - labelSelectors:
   - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
   insertVolumes:
-  - name: irsa-ssl-certs
-    secret:
-      secretName: "{{.Values.env.name}}-certs"
   - name: irsa-logs
     emptyDir:
       sizeLimit: 1000Mi
@@ -69,9 +66,6 @@ rules:
     - name: podinfo
       mountPath: /var/run/podinfo
       readOnly: true
-    - name: irsa-ssl-certs
-      mountPath: /etc/ssl/certs/irsa
-      readOnly: true
   modifyEnv:
     env:
     - name: POD_INFO_PATH
@@ -87,18 +81,16 @@ rules:
     - name: DOMINO_IRSA_ENDPOINT
       value: https://{{ .Values.env.service }}.{{ .Values.env.namespace.field }}/map_iam_roles_to_pod_sa
     - name: AWS_DEFAULT_REGION
-      value: {{.Values.env.aws_default_region}}
+      value: {{.Values.env.aws_default_region | default .Values.env.aws_region }}
     - name: AWS_REGION
-      value: {{.Values.env.aws_region}}
+      value: {{ required "Please set the AWS region that Domino is deployed to in your values file" .Values.env.aws_region}}
     - name: AWS_STS_REGIONAL_ENDPOINTS
       value: {{.Values.env.aws_sts_regional_endpoints}}
     - name: OIDC_PROVIDER
-      value: {{.Values.env.oidc_provider}}
+      value: {{ required "Please configure the OIDC provider URL" .Values.env.oidc_provider }}
     - name: OIDC_PROVIDER_AUDIENCE
       value: {{.Values.env.oidc_provider_audience}}
     - name: DOMINO_IRSA_PROXY
       value: http://localhost:6003
-    - name: DOMINO_IRSA_SSL_CERT
-      value: /etc/ssl/certs/irsa/tls.crt
 
 {{- end }}
