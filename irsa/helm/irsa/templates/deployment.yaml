@@ -46,6 +46,18 @@ spec:
           value: {{ .Values.env.oidc_provider_audience }}
         - name: FLASK_WORKERS
           value: "{{ default 1 .Values.env.irsa_workers }}"
+        {{- if (.Values.env.proxy.https_proxy) }}
+        - name: HTTPS_PROXY
+          value: {{ .Values.env.proxy.https_proxy }}
+        {{ end -}}
+        {{- if .Values.env.proxy.http_proxy -}}
+        - name: HTTP_PROXY
+          value: {{ .Values.env.proxy.http_proxy }}
+        {{ end }}
+        {{- if (coalesce .Values.env.proxy.https_proxy .Values.env.proxy.http_proxy) -}} 
+        - name: NO_PROXY
+          value: {{ if .Values.env.proxy.no_proxy }}".{{ .Values.env.namespace.platform }},{{ .Values.env.proxy.no_proxy }}"{{ else }}".{{ .Values.env.namespace.platform }}"{{end -}}
+        {{ end }}
         ports:
         - containerPort: 6000
         resources:
