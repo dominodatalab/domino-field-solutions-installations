@@ -41,11 +41,23 @@ spec:
         - name: DEFAULT_COMPUTE_NS
           value: {{ .Values.env.namespace.compute }}
         - name: OIDC_PROVIDER
-          value: {{ .Values.env.oidc_provider }}
+          value: {{ required "Please configure the OIDC provider URL in your values file" .Values.env.oidc_provider }}
         - name: OIDC_PROVIDER_AUDIENCE
           value: {{ .Values.env.oidc_provider_audience }}
         - name: FLASK_WORKERS
           value: "{{ default 1 .Values.env.irsa_workers }}"
+        {{- if (.Values.env.proxy.https_proxy) }}
+        - name: HTTPS_PROXY
+          value: {{ .Values.env.proxy.https_proxy }}
+        {{ end -}}
+        {{- if .Values.env.proxy.http_proxy -}}
+        - name: HTTP_PROXY
+          value: {{ .Values.env.proxy.http_proxy }}
+        {{ end }}
+        {{- if (coalesce .Values.env.proxy.https_proxy .Values.env.proxy.http_proxy) -}} 
+        - name: NO_PROXY
+          value: {{ if .Values.env.proxy.no_proxy }}".{{ .Values.env.namespace.platform }},{{ .Values.env.proxy.no_proxy }}"{{ else }}".{{ .Values.env.namespace.platform }}"{{end -}}
+        {{ end }}
         ports:
         - containerPort: 6000
         resources:
@@ -60,7 +72,7 @@ spec:
             path: /healthz
             port: 6000
             scheme: HTTPS
-          initialDelaySeconds: 20
+          initialDelaySeconds: 10
           failureThreshold: 2
           timeoutSeconds: 5
           periodSeconds: 30
@@ -69,37 +81,20 @@ spec:
             path: /healthz
             port: 6000
             scheme: HTTPS
-          initialDelaySeconds: 20
+          initialDelaySeconds: 10
           failureThreshold: 2
           timeoutSeconds: 5
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
         volumeMounts:
           - name: certs
             mountPath: /ssl
             readOnly: true
           - name: logs
             mountPath: /var/log/irsa
-      - name: memcached
-        securityContext:
-          runAsUser: 11211
-          runAsGroup: 11211
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - all
-        image: "{{.Values.image.repository}}/{{.Values.image.memcachedContainer}}:{{.Values.image.memcachedVersion}}"
-        env:
-        - name: MEMCACHED_MAX_MEMORY
-          value: "{{ .Values.env.memcached.max_memory }}"
-        - name: MEMCACHED_TCP_PORT
-          value: "11211"
-        - name: MEMCACHED_EXTRA_OPTIONS
-          value: -vvvv          
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
       volumes:
         - name: certs
           secret:
             secretName: "{{.Values.env.name}}-certs"
         - name: logs
           emptyDir:
-            sizeLimit: 1000Mi            
+            sizeLimit: 1000Mi

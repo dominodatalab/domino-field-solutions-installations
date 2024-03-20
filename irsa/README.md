@@ -83,6 +83,8 @@ kubectl -n ${compute_namespace} delete secret irsa-certs
 kubectl get secret irsa-certs -n ${field_namespace} -o yaml | sed 's/namespace: .*/namespace: domino-compute/' | kubectl apply -f -
 ```
 
+**This step is not required for IRSA 1.7.0 or higher.**
+
 ## IRSA Rollback
 
 If you have to roll back the version of the IRSA deployment within your cluster, you can use the `helm rollback` command:

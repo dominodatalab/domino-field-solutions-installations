@@ -2,35 +2,34 @@ image:
   repository: quay.io/domino
   serverContainer: irsa
   clientContainer: irsa-client
-  memcachedContainer: memcached
-  memcachedVersion: '1.6.22'
-  serverAppVersion: v1.6.1-release
-  clientAppVersion: v1.5.0-release
+  serverAppVersion: v1.7.0-release
+  clientAppVersion: v1.7.0-release
   pullPolicy: Always
 env:
   name: irsa
   service: irsa-svc
-  eks_aws_account: '<EKS_ACCOUNT_NO>'
-  assets_aws_account: '<ASSETS_ACCOUNT_NO>'
-  eks_service_role_name: <IRSA_SERVICE_ROLE>
-  oidc_provider: oidc.eks.<AWS_REGION>.amazonaws.com/id/<ID>
+  eks_aws_account: # The AWS account number for the AWS account where EKS is deployed.
+  assets_aws_account: # The AWS account number that holds the assets to be accessed.
+  eks_service_role_name: # The IAM role name within the EKS account to be used by the IRSA service.
+  oidc_provider: # This is in the form of oidc.eks.<AWS_REGION>.amazonaws.com/id/<ID>: 
+                 # to retrieve, run aws eks describe-cluster --name <CLUSTER_NAME> | jq -r '.cluster.identity.oidc.issuer' | sed s/https\:\\/\\///g
   oidc_provider_audience: sts.amazonaws.com
-  aws_default_region: <AWS_REGION>
-  aws_region: <AWS_REGION>
+  aws_default_region: # This is the region that EKS is deployed to. Defaults to the value of "aws_region".
+  aws_region:  # This is the region that EKS is deployed to.
   aws_sts_regional_endpoints: regional
   govcloud: false
+  proxy:
+    https_proxy: # If you need to set an https proxy, put the URL here
+    http_proxy: # If you need to set an http proxy, put the URL here
+    no_proxy: # Add any additional no_proxy values here. Includes ".domino-plaform"
   namespace:
     platform: domino-platform
     compute: domino-compute
     field: domino-field
-  memcached:
-    max_memory: 1024 # max mem for memcached in MB    
 istio:
   enabled: false
 irsa_client_sidecar:
   enabled: true
-# Cert manager certificate validity & rotation times
-# Leave as default unless specifically required to change
 certmanager:
-  duration: 4320h
-  renewBefore: 360h
+  duration: "4320h"
+  renewBefore: "360h"
