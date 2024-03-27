@@ -46,18 +46,24 @@ spec:
           value: {{ .Values.env.oidc_provider_audience }}
         - name: FLASK_WORKERS
           value: "{{ default 1 .Values.env.irsa_workers }}"
-        {{- if (.Values.env.proxy.https_proxy) }}
+        - name: AWS_DEFAULT_REGION
+          value: {{.Values.env.aws_default_region | default .Values.env.aws_region }}
+        - name: AWS_REGION
+          value: {{ required "Please set the AWS region that Domino is deployed to in your values file" .Values.env.aws_region}}
+        - name: AWS_STS_REGIONAL_ENDPOINTS
+          value: {{ .Values.env.aws_sts_regional_endpoints }}
+        {{ if .Values.env.proxy.https_proxy -}}
         - name: HTTPS_PROXY
           value: {{ .Values.env.proxy.https_proxy }}
         {{ end -}}
         {{- if .Values.env.proxy.http_proxy -}}
         - name: HTTP_PROXY
           value: {{ .Values.env.proxy.http_proxy }}
-        {{ end }}
+        {{ end -}}
         {{- if (coalesce .Values.env.proxy.https_proxy .Values.env.proxy.http_proxy) -}} 
         - name: NO_PROXY
-          value: {{ if .Values.env.proxy.no_proxy }}".{{ .Values.env.namespace.platform }},{{ .Values.env.proxy.no_proxy }}"{{ else }}".{{ .Values.env.namespace.platform }}"{{end -}}
-        {{ end }}
+          value: {{ if .Values.env.proxy.no_proxy }}".{{ .Values.env.namespace.platform }},{{ .Values.env.proxy.no_proxy }}"{{ else }}".{{ .Values.env.namespace.platform }}"{{ end }}
+        {{ end -}}
         ports:
         - containerPort: 6000
         resources:
