@@ -1,7 +1,7 @@
 ## Pre-requisites
 
-> Check with your Domino CSM before using this capability. It is a significant departure from how Domino manages
-> pod identities and may not be suitable for your requirements. It is currently only tested upto Domino version 5.8
+> Check with your Domino CSM before using this capability. It is a departure from how Domino manages
+> pod identities and may not be suitable for your requirements. 
 
 1. Install [Domsed](../domsed/README.md). It must be version `v1.3.2-release` . ***Also note that the CRD has changed so you will need to do a Helm update***
 2. For users needing to assume AWS role identities create service account per user in the `domino-compute` namespace. 
@@ -42,9 +42,8 @@ Next update the user to K8s service account mappings (see Pre-requisites)
     cloud_type: aws
     default_sa: ""
     user_mappings:
-      domino-sameerw: sameerw
-      domino-vaibhavd: vaibhavd
-      domino-marcd: marcd
+      domino-john-doe: john-doe
+      domino-jane-doe: jane-doe      
 ```
 
 2. Apply the mutations
@@ -54,7 +53,7 @@ export platform_namespace=domino-platform
 kubectl -n ${platform_namespace} apply -f ./user-identity-based-irsa.yaml
 ```
 
-3. Update your AWS trust policy for the role the user wants to assume (Ex. AWS Role `sw-irsa-test-role`)
+3. Update your AWS trust policy for the role the user wants to assume (Ex. AWS Role `my-irsa-test-role`)
 
 ```json
 {
@@ -69,9 +68,8 @@ kubectl -n ${platform_namespace} apply -f ./user-identity-based-irsa.yaml
             "Condition": {
                 "StringLike": {
                     "oidc.eks.<AWS_REGION>.amazonaws.com/id/<OIDC_ID>:sub": [
-                       "system:serviceaccount:domino-compute:vaibhavd",
-                        "system:serviceaccount:domino-compute:sameerw",
-                        "system:serviceaccount:domino-compute:marcd"
+                       "system:serviceaccount:domino-compute:john-doe",
+                        "system:serviceaccount:domino-compute:jane-doe"
                     ]
                 }
             }
@@ -85,7 +83,7 @@ kubectl -n ${platform_namespace} apply -f ./user-identity-based-irsa.yaml
 ```python
 import os
 ## You can change this to any role you (based on the k8s service account) have permission to assume
-os.environ['AWS_ROLE_ARN']='arn:aws:iam::111111111111:role/sw-irsa-test-role'
+os.environ['AWS_ROLE_ARN']='arn:aws:iam::111111111111:role/my-irsa-test-role'
 
 ## Now verify you have assumed it successfully
 import boto3.session
@@ -99,7 +97,7 @@ This should produce the output below which indicates that you have successfully 
 ```shell
 {'UserId': 'AROA5YW464O6XT4444V43:botocore-session-1701963056',
  'Account': '111111111111',
- 'Arn': 'arn:aws:sts::111111111111:assumed-role/sw-irsa-test-role/botocore-session-1701963056',
+ 'Arn': 'arn:aws:sts::111111111111:assumed-role/my-irsa-test-role/botocore-session-1701963056',
  'ResponseMetadata': {'RequestId': '77f078d6-237f-4351-9527-c959d7b409a8',
   'HTTPStatusCode': 200,
   'HTTPHeaders': {'x-amzn-requestid': '77f078d6-237f-4351-9527-c959d7b409a8',
@@ -121,7 +119,7 @@ exactly as below
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: integration-test
+  name: test-user
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/my-role
 ```
@@ -136,7 +134,7 @@ metadata:
   name: run-xyz-1
   namespace: domino-compute  
 spec:
-  serviceAccountName: integration-test
+  serviceAccountName:  test-user
   containers:
   - name: main
     image: demisto/boto3py3:1.0.0.81279
@@ -206,14 +204,15 @@ You will see that the you cannot assume this role because it does not exist. Now
         {
             "Effect": "Allow",
             "Principal": {
-                "Federated": "arn:aws:iam::<AWS_ACCOUNT_NO>:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/C7F107CAE94B194C9AF67A09A84B878B"
+                "Federated": "arn:aws:iam::<AWS_ACCOUNT_NO>:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/<OIDC_ID>"
             },
             "Action": "sts:AssumeRoleWithWebIdentity",
             "Condition": {
                 "StringLike": {
-                    "oidc.eks.us-west-2.amazonaws.com/id/C7F107CAE94B194C9AF67A09A84B878B:sub": [
-                        "system:serviceaccount:domino-compute:domino-wadkars",
-                        "system:serviceaccount:domino-compute:integration-test"
+                    "oidc.eks.us-west-2.amazonaws.com/id/<OIDC_ID>:sub": [
+                        "system:serviceaccount:domino-compute:john-doe",
+                        "system:serviceaccount:domino-compute:jane-doe",
+                        "system:serviceaccount:domino-compute:test-user"
                     ]
                 }
             }

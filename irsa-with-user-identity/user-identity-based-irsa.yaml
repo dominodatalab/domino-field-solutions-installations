@@ -11,7 +11,9 @@ rules:
     default_sa: ""
     assume_sa_mapping: false
     user_mappings:
-      sameer_wadkar: sameer-wadkar
+      test-user: test-user
+      john-doe: john-doe
+      jane-doe: jane-doe
   insertVolumeMounts:
     volumeMounts:
     - mountPath: /var/run/.aws
