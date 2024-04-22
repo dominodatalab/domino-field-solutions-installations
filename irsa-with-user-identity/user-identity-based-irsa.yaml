@@ -9,7 +9,7 @@ rules:
   cloudWorkloadIdentity:
     cloud_type: aws
     default_sa: ""
-    ssume_sa_mapping: false
+    assume_sa_mapping: false
     user_mappings:
       test-user: test-user
       john-doe: john-doe
