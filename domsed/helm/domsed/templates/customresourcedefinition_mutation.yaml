@@ -476,6 +476,25 @@ spec:
                           required:
                             - name
                             - value
+                      artifactory:
+                        type: object
+                        properties:
+                          image-pull-secret:
+                            type: string
+                          secret-ns:
+                            type: string
+                          artifactory-dns:
+                            type: string
+                          duration-seconds:
+                            type: integer
+                          build-arg-name:
+                            type: string
+                        required:
+                          - image-pull-secret
+                          - secret-ns
+                          - artifactory-dns
+                          - duration-seconds
+                          - build-arg-name
                   jqSelector:
                     type: object
                     required:
@@ -519,7 +538,13 @@ spec:
                                         x-kubernetes-preserve-unknown-fields: true
 
                   addLdapSupplementalGroups:
-                    type: string
-
+                    type: object
+                    properties:
+                      use_groups:
+                        type: boolean
+                        default: true
+                      user_attribute:
+                        type: string
+                        default: ""
       subresources:
         status: {}

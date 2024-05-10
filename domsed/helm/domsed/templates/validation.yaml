@@ -38,5 +38,5 @@ webhooks:
           - "rayclusters"
           - "imagebuilds"
         scope: "Namespaced"
-    failurePolicy: Fail
+    failurePolicy: "{{ .Values.mutation.failurePolicy }}"
     timeoutSeconds: !!int "{{ .Values.mutation.timeoutSeconds | default 10 }}"
