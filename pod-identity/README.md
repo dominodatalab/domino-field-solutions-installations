@@ -24,7 +24,7 @@ kubectl -n create sa svc-user-2 -n domino-compute
 apiVersion: apps.dominodatalab.com/v1alpha1
 kind: Mutation
 metadata:
-  name: user-identity-based-irsa
+  name: map-domino-user-k8s-sa
   namespace: domino-platform
 rules:
 - labelSelectors:
