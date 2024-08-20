@@ -15,6 +15,7 @@ spec:
         app: "{{ .Values.env.name }}"
         nucleus-client: "true"
         mongodb-replicaset-client: "true"
+        keycloak-client: "true"
     spec:
       nodeSelector:
         dominodatalab.com/node-pool: platform

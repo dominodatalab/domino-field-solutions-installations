@@ -1,15 +1,12 @@
-image:
-  repository: quay.io/domino
-  container: extendedapi
-  appVersion: v0.0.2
-  pullPolicy: Always
+apiVersion: v1
+name: extendedapi
+version: 1.1.0
+description: extendedapi
+home: https://github.com/dominodatalab/extendedapi
+keywords:
+- extendedapi
+- autoshutdown
+maintainers:
+- email: sameer.wadkar@dominodatalab.com
+  name: Sameer Wadkar
 
-env:
-  name: extendedapi
-  service: extendedapi-svc
-  admins_acl: extended-api-acls
-  namespace:
-    platform: domino-platform
-    compute: domino-compute
-istio:
-  enabled: false
