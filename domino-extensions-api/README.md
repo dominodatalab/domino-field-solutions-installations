@@ -1,11 +1,25 @@
-# Domino Extended API (Field Extensions)
-
-# Domino Extended API (Field Extensions)
+# Domino Extensions API (Field Extensions)
 
 This library enables adding new API endpoints to support customer requirements 
 
 ## Installation
-1. ## Use Helm to Install
+
+From the root folder of this project run the following commands:
+
+1. First publish the image
+```shell
+tag="${tag:-latest}"
+operator_image="${operator_image:-quay.io/domino/domino-extensions-api}"
+docker build -f ./Dockerfile -t ${operator_image}:${tag} .
+docker push ${operator_image}:${tag}
+```
+
+or run
+
+```shell
+./create_and_push_docker_image.sh ${tag}
+```
+2. ## Use Helm to Install
 Check if you have domino-field namespace in the current cluster 
 ```shell
 kubectl get ns
@@ -14,25 +28,24 @@ if domino-field namspace is not present create using below command
 ```shell
 kubectl create namespace domino-field
 kubectl label namespace domino-field  domino-compute=true
-kubectl label namespace domino-field  domino-platform=true
 ```
 Install using Helm
 
 ```shell
 export field_namespace=domino-field
-helm install -f helm/extendedapi/values.yaml extendedapi helm/extendedapi -n ${field_namespace}
+helm install -f helm/domino-extensions-api/values.yaml domino-extensions-api helm/domino-extensions-api -n ${field_namespace}
 ```
-2. To upgrade use helm
+3. To upgrade use helm
 ```shell
 export field_namespace=domino-field
-helm upgrade -f helm/extendedapi/values.yaml extendedapi helm/extendedapi -n ${field_namespace}
+helm upgrade -f helm/domino-extensions-api/values.yaml domino-extensions-api helm/domino-extensions-api -n ${field_namespace}
 ```
 
-3. To delete use helm 
+4. To delete use helm 
 
 ```shell
 export field_namespace=domino-field
-helm delete  extendedapi -n ${field_namespace}
+helm delete  domino-extensions-api -n ${field_namespace}
 ```
 
 ## Using the API
@@ -94,7 +107,7 @@ Currently there are two levers to manage the workspace auto-shutdown intervals:
 
 The full endpoint inside the Domino workspace is (assuming `domino-platform` as the platform namespace)
 ```shell
-http://domino-extendedapi-svc.domino-platform/v4-extended/autoshutdownwksrules
+http://domino-extensions-api-svc.domino-platform/v4-extended/autoshutdownwksrules
 ```
 
 Type : POST
@@ -180,6 +193,150 @@ Invoke using python client code `client.domsed_webclient.apply_file(yaml_file_na
 
 Invoke using python client code `client.domsed_webclient.apply(mutation_json)`
 
+
+### User Management
+
+These endpoints allow a Domino Administrator to do the following:
+1. Find which accounts have been inactive for `x` number of days. An inactive account is an account that has not started a workload for x number of days
+2. Deactivate a list of users
+3. ReActivate a list of users
+
+#### Find Inactive Users for `x` days `/user-management/inactivefor/<days>` (GET)
+Returns a list of inactive accounts. Expect a json which looks like this
+```json
+{
+    "inactive_accounts": [
+        {
+            "is_svc_account": true,
+            "user_name": "svc-user-ds-2"
+        },
+        {
+            "is_svc_account": true,
+            "user_name": "svc-user-ds-3"
+        },
+        {
+            "is_svc_account": true,
+            "user_name": "svc-test-app-1"
+        },
+        {
+            "is_svc_account": true,
+            "user_name": "svc-prod-app-1"
+        },
+        {
+            "is_svc_account": true,
+            "user_name": "svc-admin"
+        },
+        {
+            "is_svc_account": false,
+            "user_name": "user-ds-1"
+        },
+        {
+            "is_svc_account": false,
+            "user_name": "user-ds-2"
+        }
+    ]
+}
+```
+
+Client code
+```python
+import os
+import json
+import requests
+def get_token():
+    # Fetch the mounted service account token
+    uri = os.environ['DOMINO_API_PROXY']
+    return requests.get(f"{uri}/access-token").text
+
+service_name="domino-extensions-api-svc"
+dns_name = f"{service_name}.domino-field.svc.cluster.local"
+
+endpoint = "user-management/inactivefor/5"
+url = f"http://{dns_name}/{endpoint}"
+
+token = get_token()
+my_headers = {"Authorization": f"Bearer {token}"}
+domino_api_host = os.environ['DOMINO_API_HOST']
+r = requests.get(url,headers=my_headers)
+# Pretty-print the JSON object
+pretty_json = json.dumps(r.json(), indent=4)
+print(pretty_json)
+```
+
+
+#### Deactivate users `/user-management/deactivate` (POST)
+
+Example payload
+```json
+{"users":["user-ds-1","user-ds-2"]}
+```
+Client code
+```python
+import os
+import json
+import requests
+def get_token():
+    # Fetch the mounted service account token
+    uri = os.environ['DOMINO_API_PROXY']
+    return requests.get(f"{uri}/access-token").text
+
+service_name="domino-extensions-api-svc"
+dns_name = f"{service_name}.domino-field.svc.cluster.local"
+endpoint = "user-management/deactivate"
+url = f"http://{dns_name}/{endpoint}"
+payload = {"users":['user-ds-1','user-ds-2']}
+token = get_token()
+my_headers = {"Authorization": f"Bearer {token}",'Content-Type': 'application/json'}
+domino_api_host = os.environ['DOMINO_API_HOST']
+
+r = requests.post(url,headers=my_headers,json=payload)
+print(r)
+r.text
+```
+Output should look like this when successful
+```json
+{"updated_users":["user-ds-1","user-ds-2"]}
+```
+
+
+#### Activate users `/user-management/activate` (POST)
+
+Example payload
+```json
+{"users":["user-ds-1","user-ds-2"]}
+```
+Client code
+```python
+import os
+import json
+import requests
+def get_token():
+    # Fetch the mounted service account token
+    uri = os.environ['DOMINO_API_PROXY']
+    return requests.get(f"{uri}/access-token").text
+
+service_name="domino-extensions-api-svc"
+dns_name = f"{service_name}.domino-field.svc.cluster.local"
+endpoint = "user-management/activate"
+url = f"http://{dns_name}/{endpoint}"
+payload = {"users":['user-ds-1','user-ds-2']}
+token = get_token()
+my_headers = {"Authorization": f"Bearer {token}",'Content-Type': 'application/json'}
+domino_api_host = os.environ['DOMINO_API_HOST']
+
+r = requests.post(url,headers=my_headers,json=payload)
+print(r)
+r.text
+```
+Output should look like this when successful
+```json
+{"updated_users":["user-ds-1","user-ds-2"]}
+```
+> When a user is deactivated their roles are removed. When reactivated, there is no memory of what
+> roles were held by the user prior to being deactivated. A newly reactivated
+> user is a `Lite` user or `ResultsConsumer`
+
+
 ## Motivating Use-cases and Client Code
 
 The following lists the use-cases which motivated the endpoints in this service
@@ -254,8 +411,8 @@ import requests
 import json
 import os
 
-api_host = os.environ.get("EXTENDED_API_HOST", "extendedapi-svc.domino-platform")
-api_port = os.environ.get("EXTENDED_API_PORT", "80")
+api_host = "domino-extensions-api-svc.domino-platform"
+api_port = "80"
 auth_token = requests.get(os.environ.get('DOMINO_API_PROXY') + '/access-token').text
 api_key =  os.environ.get("DOMINO_USER_API_KEY")
 
@@ -288,7 +445,9 @@ response = requests.request("POST", url, headers=headers, data=payload)
 print(response.text)
 ```
 
-## Notebooks
 
-1. [Domsed Client Notebook](./code-examples/notebooks/domsed_client.ipynb) - An admin can use this notebook to manage mutations
-2. [Control HW Tier Access Notebook](./code-examples/notebooks/manage_hwtier_rbac.ipynb) - This is a helper notebooks to create the complex mutations to manage the hw tiers
+   
+
+
+
+
