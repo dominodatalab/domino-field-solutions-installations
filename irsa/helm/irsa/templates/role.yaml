@@ -32,6 +32,11 @@ rules:
   - "serviceaccounts"
   verbs:
   - "get"
+  - "list"
+  - "create"
+  - "update"
+  - "patch"
+  - "delete"
 - apiGroups:
   - ""
   resources:

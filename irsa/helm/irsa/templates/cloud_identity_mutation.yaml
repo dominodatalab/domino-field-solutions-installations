@@ -1,0 +1,16 @@
+{{- if .Values.userbasedserviceaccounts.enabled -}}
+apiVersion: apps.dominodatalab.com/v1alpha1
+kind: Mutation
+metadata:
+  name: {{ .Values.env.name }}-cloud-identity
+  namespace: {{.Values.env.namespace.platform}}
+rules:
+- labelSelectors:
+  - "dominodatalab.com/workload-type in (Workspace,Batch,Scheduled)"
+  matchBuilds: false
+  cloudWorkloadIdentity:
+    cloud_type: aws
+    user_mappings: { }
+    assume_sa_mapping: true
+    default_sa: ""
+{{ end -}}
