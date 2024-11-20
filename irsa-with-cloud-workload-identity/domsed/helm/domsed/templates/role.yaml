@@ -1,0 +1,129 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: "{{ .Values.env.name }}-webhook"
+rules:
+- apiGroups:
+  - apps.dominodatalab.com
+  resources:
+  - "mutations"
+  verbs:
+  - "*"
+- apiGroups:
+  - apps
+  resources:
+  - "mutations"
+  verbs:
+  - "*"
+- apiGroups:
+  - apps.dominodatalab.com
+  resources:
+  - "validations"
+  verbs:
+  - "*"
+- apiGroups:
+  - apps
+  resources:
+  - "validations"
+  verbs:
+  - "*"
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  - deployments
+  verbs:
+  - get
+  - list
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - delete  
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - "create"
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: "{{ .Values.env.name }}-webhook"
+  namespace: "{{ .Values.env.namespace.compute }}"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - "serviceaccounts"
+  verbs:
+  - "get"
+  - "create"
+- apiGroups:
+  - ""
+  resources:
+  - "services"
+  - "pods"
+  verbs:
+  - "get"
+  - "watch"
+  - "list"
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  - deployments
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - delete  
+- apiGroups:
+  - "rbac.authorization.k8s.io" 
+  resources:
+  - "rolebindings"
+  verbs:
+  - "patch"
+  - "list"
+- apiGroups:
+  - "" 
+  resources:
+  - "secrets"
+  verbs:
+  - "create"
+  - "get"
+  - "update"
+  - "patch"
+- apiGroups:
+  - "policy" 
+  resources:
+  - "podsecuritypolicies"
+  resourceNames:
+  - "domino-{{ .Values.env.namespace.platform }}-nucleus-cg2"
+  verbs:
+  - "use"
+- apiGroups:
+  - ""
+  resources:
+  - pods/exec
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - "create"
