@@ -6,12 +6,16 @@ metadata:
   labels:
     app: {{.Values.env.name}}
 spec:
-  replicas: 1
+  replicas: {{.Values.env.replicas}}
   selector:
     matchLabels:
       app: {{.Values.env.name}}
   template:
     metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "{{ .Values.env.metrics_port }}"
+        prometheus.io/scrape: "true"
       labels:
         app: {{.Values.env.name}}
         nucleus-client: "true"
@@ -34,6 +38,10 @@ spec:
               - all
         image: "{{.Values.image.repository}}/{{.Values.image.serverContainer}}:{{.Values.image.serverAppVersion}}"
         env:
+        - name: PROMETHEUS_MULTIPROC_DIR
+          value: /irsa/metrics
+        - name: PROMETHEUS_METRICS_PORT
+          value: "{{ .Values.env.metrics_port }}"
         - name: DOMINO_USER_HOST
           value: "http://nucleus-frontend.domino-platform:80"
         - name: DEFAULT_FIELD_NS

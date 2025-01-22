@@ -29,6 +29,7 @@ webhooks:
           - "pods"
           - "jobs"
           - "deployments"
+          - "services"
           - "sparkclusters"
           - "ingresses"
           - "configmaps"
@@ -39,4 +40,4 @@ webhooks:
           - "imagebuilds"
         scope: "Namespaced"
     failurePolicy: "{{ .Values.mutation.failurePolicy }}"
-    timeoutSeconds: !!int "{{ .Values.mutation.timeoutSeconds | default 10 }}"
+    timeoutSeconds: {{ int .Values.mutation.timeoutSeconds | default 10 }}

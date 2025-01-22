@@ -27,16 +27,6 @@ webhooks:
           - "*"
         resources:
           - "pods"
-          - "jobs"
-          - "deployments"
-          - "sparkclusters"
-          - "ingresses"
-          - "configmaps"
-          - "networkpolicies"
-          - "daskclusters"
-          - "mpiclusters"
-          - "rayclusters"
-          - "imagebuilds"
         scope: "Namespaced"
     failurePolicy: "{{ .Values.mutation.failurePolicy }}"
-    timeoutSeconds: !!int "{{ .Values.mutation.timeoutSeconds | default 10 }}"
+    timeoutSeconds: {{ int .Values.mutation.timeoutSeconds | default 10 }}

@@ -54,7 +54,7 @@ rules:
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: "{{ .Values.env.name }}-webhook"
+  name: "{{ .Values.env.name }}-webhook-compute"
   namespace: "{{ .Values.env.namespace.compute }}"
 rules:
 - apiGroups:
@@ -127,3 +127,11 @@ rules:
   - events
   verbs:
   - "create"
+- apiGroups:
+  - workloads.dominodatalab.com
+  resources:
+  - workloadstatusmessages
+  verbs:
+  - update
+  - get
+  - list

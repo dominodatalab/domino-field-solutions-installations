@@ -14,7 +14,7 @@ roleRef:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: "{{ .Values.env.name }}-webhook"
+  name: "{{ .Values.env.name }}-webhook-compute"
   namespace: {{ .Values.env.namespace.compute }}
 subjects:
 - kind: ServiceAccount
@@ -22,5 +22,5 @@ subjects:
   namespace: {{ .Values.env.namespace.platform }}
 roleRef:
   kind: Role
-  name: "{{ .Values.env.name }}-webhook"
+  name: "{{ .Values.env.name }}-webhook-compute"
   apiGroup: rbac.authorization.k8s.io

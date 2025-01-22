@@ -45,4 +45,6 @@ rules:
   - "get"
   - "watch"
   - "list"
-
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]

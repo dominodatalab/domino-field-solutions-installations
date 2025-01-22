@@ -11,6 +11,13 @@ spec:
     ports:
     - port: 6000
       protocol: TCP
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          domino-platform: "true"
+    ports:
+    - protocol: TCP
+      port: 8080
   podSelector:
     matchLabels:
       app: {{ .Values.env.name }}

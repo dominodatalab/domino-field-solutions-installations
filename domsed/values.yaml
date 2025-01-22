@@ -2,10 +2,12 @@ image:
   repository: quay.io/domino
   container: domsed
 
-  appVersion: v1.3.2-release
+  appVersion: v1.4.1-release
   pullPolicy: Always
 
 replicas: 1
+
+remote_dataplane: false
 
 cluster_domain: cluster.local
 imagePullSecrets: [{ "name": "domino-quay-repos" }]

@@ -35,6 +35,7 @@ spec:
                       message:
                         type: string
                         default: "failing because of generic validation"
+                  {{- if not (.Values.remote_dataplane) }}
                   enforceCpuLicenseLimit:
                     type: object
                     properties:
@@ -48,6 +49,7 @@ spec:
                     required:
                       - image_for_license_enforcement
                       - cpu_limit
+                  {{- end }}
                   jqSelector:
                     type: object
                     required:

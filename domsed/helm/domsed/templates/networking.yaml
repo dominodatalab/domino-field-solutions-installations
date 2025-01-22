@@ -3,11 +3,10 @@ kind: NetworkPolicy
 metadata:
   name: "{{ .Values.env.name }}-webhook"
 spec:
+  egress:
+  - {}
   ingress:
-  - from:
-    - ipBlock:
-        cidr: 0.0.0.0/0
-    ports:
+  - ports:
     - port: {{ .Values.webhook_port }}
       protocol: TCP
     - port: {{ .Values.metrics_port }}
@@ -17,3 +16,4 @@ spec:
       app: operator-webhook
   policyTypes:
   - Ingress
+  - Egress
