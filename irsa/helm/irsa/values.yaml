@@ -1,5 +1,5 @@
 image:
-  repository: quay.io/domino
+  repository: quay.io/domino/field
   serverContainer: irsa
   clientContainer: irsa-client
   serverAppVersion: v1.8.0-release
