@@ -25,6 +25,10 @@ spec:
               items:
                 type: object
                 properties:
+                  enabled:
+                    type: boolean
+                    description: "Mutation enabled flag. Disabling only prints logs and does not apply patches"
+                    default: true
                   labelSelectors:
                     type: array
                     items:

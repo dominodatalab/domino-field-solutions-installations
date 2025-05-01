@@ -25,6 +25,10 @@ spec:
               items:
                 type: object
                 properties:
+                  enabled:
+                    type: boolean
+                    description: "Mutation enabled flag. Disabling only prints logs and does not apply patches"
+                    default: true
                   labelSelectors:
                     type: array
                     items:
@@ -102,6 +106,21 @@ spec:
                   istioProbeRewrite:
                     type: object
                     properties: {}
+                  modifyProbe:
+                    type: object
+                    properties:
+                      containerSelector:
+                        type: array
+                        items:
+                          type: string
+                      readinessProbe:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      livenessProbe:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                    required:
+                      - containerSelector
                   istioPortException:
                     type: object
                     properties:
@@ -290,6 +309,21 @@ spec:
                         type: array
                         items:
                           type: string
+                      envFrom:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            configMapRef:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                            secretRef:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
                       env:
                         type: array
                         items:
@@ -597,5 +631,14 @@ spec:
                     properties:
                       enabled:
                         type: boolean
+                  modifyIngress:
+                    type: object
+                    properties:
+                      metadata:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      spec:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
       subresources:
         status: {}

@@ -47,7 +47,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-              - all
+              - ALL
         image: "{{ .Values.image.repository }}/{{ .Values.image.container }}:{{ .Values.image.appVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:

@@ -2,7 +2,7 @@ image:
   repository: quay.io/domino
   container: domsed
 
-  appVersion: v1.4.1-release
+  appVersion: v1.5.1-release
   pullPolicy: Always
 
 replicas: 1
