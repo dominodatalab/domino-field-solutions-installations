@@ -13,14 +13,14 @@ GET_PROJECTS_ENDPOINT = 'v4/projects'
 def get_all_projects():
     headers = {'X-Domino-Api-Key': DOMINO_API_KEY}
     url = os.path.join(DOMINO_URL,GET_PROJECTS_ENDPOINT)
-    ret = requests.get(url, headers=headers)
+    ret = requests.get(url, headers=headers,timeout=30)
     projects = ret.json()
     return projects
 
 def get_all_project_names():
     headers = {'X-Domino-Api-Key': DOMINO_API_KEY}
     url = os.path.join(DOMINO_URL,GET_PROJECTS_ENDPOINT)
-    ret = requests.get(url, headers=headers)
+    ret = requests.get(url, headers=headers,timeout=30)
     projects = ret.json()
     print(projects)
     lst = []
@@ -31,7 +31,7 @@ def get_all_project_names():
 def get_users_list():
     headers = {'X-Domino-Api-Key': DOMINO_API_KEY}
     url = os.path.join(DOMINO_URL,GET_USERS_ENDPOINT)
-    ret = requests.get(url, headers=headers)
+    ret = requests.get(url, headers=headers,timeout=30)
     users = ret.json()
     return users
 
@@ -39,7 +39,7 @@ def get_users_list():
 def get_user_names_list():
     headers = {'X-Domino-Api-Key': DOMINO_API_KEY}
     url = os.path.join(DOMINO_URL,GET_USERS_ENDPOINT)
-    ret = requests.get(url, headers=headers)
+    ret = requests.get(url, headers=headers,timeout=30)
     users = ret.json()
     lst = []
     for u in users:
