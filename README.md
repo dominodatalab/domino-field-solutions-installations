@@ -5,3 +5,4 @@
 3. [IRSA](./irsa/README.md)
 4. [Ray Environments](./domino-environments/ray/README.md)
 5. [Cost Management Best Practices](./cost-management-best-practices/README.md)
+6. [S3 Fuse based EDV](./s3-fuse/README.md)
