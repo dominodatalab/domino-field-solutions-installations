@@ -1,0 +1,20 @@
+apiVersion: apps.dominodatalab.com/v1alpha1
+kind: Validation
+metadata:
+  name: controlGPUTierAccess
+  namespace: domino-platform
+rules:
+- #Only allow jobs to use Full GPU Tier. MIG Based tiers are allowed for workspaces
+  hardwareTierIdSelector: ['full-gpu-tier']
+  labelSelectors:
+  - "dominodatalab.com/workload-type==Workspace"
+  #If both name and originalImage are empty images of all containers are change
+  queryValidation:
+    message: "Cannot launch workspaces using the gpu hardware tier"
+- #Only members of massive-hw-tier-grp can use hw-tier for project wadkars/quickstart
+  hardwareTierIdSelector: ['massive-hw-tier']
+  notOrganizationSelector: ['massive-hw-tier-grp']
+  projectSelector: ['wadkars/quick-start']
+  queryValidation:
+    message: "Members of org massive-hw-tier-grp can only use tier for non wadkars/quickstart project" ]
+#https://github.com/cerebrotech/domsed/blob/05f9818cc81571d855ee957cdba32c8dac212b6f/examples/jq-container-image-rewrite-no-gpu-wks.yaml#L4

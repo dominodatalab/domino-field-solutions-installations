@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.env.name }}
+  namespace: {{ .Values.env.namespace }}
+  labels:
+    app: {{ .Values.env.name }}
+    type: {{ .Values.env.type }}
+    nucleus-client: "true"
+    security.istio.io/tlsMode: "istio"
+spec:
+  replicas: {{ .Values.triton_inference_server.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.env.name }}
+
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.env.name }}
+        type: {{ .Values.env.type }}
+        nucleus-client: "true"
+        security.istio.io/tlsMode: "istio"
+
+    spec:
+      containers:
+      - name: triton
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - all
+        image: {{ .Values.triton_inference_server.image }}
+
+        args:
+          - "tritonserver"
+          - "--model-repository=/models"
+          - "--model-control-mode=poll"
+          - "--repository-poll-secs=30"
+          - "--log-verbose=1"
+
+        resources:
+          requests:
+            cpu: "1"
+            memory: "8Gi"
+
+        ports:
+          - containerPort: 8000
+            name: http
+          - containerPort: 8001
+            name: grpc
+          - containerPort: 8002
+            name: metrics
+
+        volumeMounts:
+          - mountPath: "/models"
+            name: models-vol
+      volumes:
+        - name: models-vol
+          persistentVolumeClaim:
+            claimName: {{ .Values.env.name }}-pvc

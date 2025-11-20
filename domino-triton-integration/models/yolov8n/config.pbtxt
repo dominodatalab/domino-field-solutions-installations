@@ -1,0 +1,30 @@
+name: "yolov8n"
+platform: "onnxruntime_onnx"
+max_batch_size: 16
+
+input: [
+  { name: "images" data_type: TYPE_FP32 dims: [3, 640, 640] }
+]
+output: [
+  { name: "output0" data_type: TYPE_FP32 dims: [300, 6] }
+]
+
+instance_group: [ { kind: KIND_CPU, count: 1 } ]
+
+version_policy {
+  all { }
+}
+
+# Only load 3 most recent versions
+#version_policy {
+#  latest {
+#    num_versions: 3
+#  }
+#}
+
+# Load only specific versions
+#version_policy {
+#  specific {
+#    versions: [1, 3, 5]
+#  }
+#}

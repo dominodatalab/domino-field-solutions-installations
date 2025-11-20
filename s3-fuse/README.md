@@ -103,7 +103,8 @@ Create an IAM role with the following trust relationship policy to allow the Kub
             "Condition": {
                 "StringLike": {
                     "oidc.eks.us-west-2.amazonaws.com/id/FF87726BFB448D3079A24017ECA6B6E5:aud": "sts.amazonaws.com",
-                    "oidc.eks.us-west-2.amazonaws.com/id/FF87726BFB448D3079A24017ECA6B6E5:sub": "system:serviceaccount:domino-compute:aws-test"
+                    "oidc.eks.us-west-2.amazonaws.com/id/FF87726BFB448D3079A24017ECA6B6E5:sub": "system:serviceaccount:domino-compute:a:q!ws-test",
+                   
                 }
             }
         }
@@ -318,3 +319,46 @@ mix driver based role and pod based role access. This is a limitation of the S3-
 
 - When using pod based role access make sure you have the correct region for the S3 bucket specified in the PV mount options.
 
+## Benchmarking
+```shell
+python benchmark_s3_fuse_efs.py \
+  --bucket wgamage \
+  --prefix-s3 teams/team-c/bench-s3 \
+  --region us-west-2 \
+  --mount-path /domino/edv/mountpoints3-team-c-pvc/ \
+  --prefix-fuse teams/team-c/bench-fuse \
+  --efs-path /domino/datasets/local/quick-start \
+  --prefix-efs teams/team-c/bench-efs \
+  --files-n 8 \
+  --file-mb 256 \
+  --chunk-mb 8 \
+  --verify \
+  --out-csv triple_results.cs
+```
+
+Output sample:
+```shell
+[S3(boto3)] Writing 8 files x 256 MB (chunk 8 MB)...
+[FUSE] Writing 8 files x 256 MB (chunk 8 MB)...
+[EFS] Writing 8 files x 256 MB (chunk 8 MB)...
+[S3(boto3)] Read→copy→delete-local for 8 files (chunk 8 MB)...
+[FUSE] Read→copy→delete-local for 8 files (chunk 8 MB)...
+[EFS] Read→copy→delete-local for 8 files (chunk 8 MB)...
+
+=== Phase A: Writes (higher MB/s is better) ===
+Backend      Files       Size       MB/s     P50 ms     P95 ms     P99 ms
+S3(boto3)        8     2.0 GB      132.2     1936.5     2033.0     2033.0
+FUSE             8     2.0 GB      202.3     1263.0     1733.7     1733.7
+EFS              8     2.0 GB       84.4     3038.1     3145.8     3145.8
+
+=== Phase B: Read → Copy Local → Delete Local (higher MB/s is better) ===
+Backend      Files       Size       MB/s     P50 ms     P95 ms     P99 ms   MD5 mism
+S3(boto3)        8     2.0 GB       67.1     3814.9     3856.0     3856.0          0
+FUSE             8     2.0 GB      104.9     2428.7     2566.7     2566.7          0
+EFS              8     2.0 GB      125.1     2047.0     2049.4     2049.4          0
+```
+
+Fuse Caveats:  
+- It’s eventually consistent on S3, not strong like EFS
+- Cache invalidation can surprise you if multiple pods share the same mount (Concurrent writes)
+- Metadata ops (ls, stat, etc.) are slower than on EFS because each directory list maps to S3 API calls.

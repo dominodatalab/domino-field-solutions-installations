@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Values.env.name}}-proxy
+  namespace: {{.Values.env.namespace}}
+spec:
+  replicas:  {{.Values.proxy.replicas}}
+  selector:
+    matchLabels:
+      app: {{.Values.env.name}}-proxy
+  template:
+    metadata:
+      labels:
+        app: {{.Values.env.name}}-proxy
+        role: grpc-triton-proxy
+        nucleus-client: "true"
+    spec:
+      containers:
+      - name: proxy
+        image: {{.Values.proxy.image}}
+        imagePullPolicy: Always
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        env:
+        - name: TRITON_URL
+          value: "{{.Values.env.name}}:8001"   # Triton Service DNS in same namespace
+        - name: BACKEND_ADDR
+          value: "{{.Values.env.name}}:8001"   # Triton Service DN
+        - name: DOMINO_HOST
+          value: "http://nucleus-frontend.domino-platform:80"
+        ports:
+        - containerPort: 50051
+          name: grpc
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "1Gi"

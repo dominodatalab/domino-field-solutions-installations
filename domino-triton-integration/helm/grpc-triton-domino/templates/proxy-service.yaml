@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.Values.env.name}}-proxy
+  namespace: {{.Values.env.namespace}}
+spec:
+  selector:
+    app: {{.Values.env.name}}-proxy
+  ports:
+  - name: grpc
+    port: 50051
+    targetPort: 50051
+  type: ClusterIP
