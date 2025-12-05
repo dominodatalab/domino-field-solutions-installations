@@ -354,8 +354,8 @@ cd ..
 
 ### 3) Docker-build and push
 ```shell
-docker buildx build --platform=linux/amd64 -f ./Dockerfile.triton -t quay.io/domino/grpc-domino-triton-backend:latest --push .
-docker buildx build --platform=linux/amd64 -f ./Dockerfile.triton.proxy -t quay.io/domino/grpc-domino-triton-proxy:latest --push .
+docker buildx build --platform=linux/amd64 -f ./Dockerfile.triton -t quay.io/domino/grpc-domino-triton-backend:v1 --push .
+docker buildx build --platform=linux/amd64 -f ./Dockerfile.triton.proxy -t quay.io/domino/grpc-domino-triton-proxy:v1 --push .
 ```
 
 
