@@ -18,7 +18,95 @@ deployment of models from Domino to Triton.
 As a pre-requistite, please make sure you have the following:
 1. An S3 bucket created to store the models
 2. A AWS role and policy with full access to the S3 bucket
-3. [Install](https://github.com/dominodatalab/domino-field-solutions-installations/blob/main/s3-fuse/README.md) S3-fuse on the Kubernetes cluster nodes
+
+### Installation for the S3 Fuse CSI Driver
+
+The capability uses the AWS IRSA (IAM Roles for Service Accounts) feature to secure access to S3 buckets. 
+The feature is enabled by The Mountpoint for Amazon S3 Container Storage Interface (CSI) Driver allows your Kubernetes 
+applications to access Amazon S3 objects through a file system interface. Built on Mountpoint for Amazon S3, the 
+Mountpoint CSI driver presents an Amazon S3 bucket as a storage volume accessible by containers in your Kubernetes 
+cluster. The Mountpoint CSI driver implements the CSI specification for container orchestrators (CO) to manage storage 
+volumes.
+
+For Amazon EKS clusters, the Mountpoint for Amazon S3 CSI driver is also available as an EKS add-on to provide automatic
+installation and management. This is the capability used in this guide.
+
+
+### Create the IAM role and policy and attach the policy to the role
+
+IAM Role - `acme-s3-fuse-role`
+
+IAM Policy - `acme-s3-fuse-policy`
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket",
+                "s3:GetBucketLocation"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<BUCKET_NAME>"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<BUCKET_NAME>"
+            ]
+        }
+    ]
+}
+```
+
+IAM Role Trust Relationship 
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "arn:aws:iam::11111111111:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/XXXXXXX"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringLike": {
+                    "oidc.eks.us-west-2.amazonaws.com/id/XXXXXXX:aud": "sts.amazonaws.com",
+                    "oidc.eks.us-west-2.amazonaws.com/id/XXXXXXX:sub": "system:serviceaccount:domino-platform:s3-csi-driver-sa"
+                }
+            }
+        }
+    ]
+}
+```
+
+### Install the S3 Fuse CSI Driver using Helm
+
+```bash
+
+export AWS_ACCOUNT_ID=<account-id>
+export AWS_ROLE_ARN=arn:aws:iam::${AWS_ACCOUNT_ID}:role/acme-s3-fuse-role
+export platform_namespace=domino-platform
+export s3_csi_driver_sa=s3-csi-driver-sa
+
+helm repo add aws-mountpoint-s3-csi-driver https://awslabs.github.io/mountpoint-s3-csi-driver
+helm repo update
+
+helm upgrade --install aws-mountpoint-s3-csi-driver \
+  --namespace ${platform_namespace} \
+  --set node.serviceAccount.create=true \
+  --set node.serviceAccount.name=${s3_csi_driver_sa} \
+  --set node.serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${AWS_ROLE_ARN} \
+  aws-mountpoint-s3-csi-driver/aws-mountpoint-s3-csi-driver
+```
 
 
 ## Create Namespace
@@ -28,34 +116,37 @@ Create a namespace for the Domino Inference installation. In this example, we cr
 Do not forget to label the namespace for Domino Compute usage. This is required to make calls to Nucleus for
 authz purposes. Nucleus frontend will reject requests from namespace without this label.
 
+The other label `domino-triton=true` marks this namespace as hosting a Domino Triton installation.
+
 ```bash
 
 kubectl create namespace domino-inference-dev
 
 ## Label Namespace for Domino Compute
 kubectl label namespace domino-inference-dev domino-compute=true
+kubectl label namespace domino-inference-dev domino-triton=true
 ```
 ## Helm Delete
 
 ```bash
-export ns=domino-inference-dev
-helm delete  -n $ns grpc-triton-domino
+export ns=domino-inference-test
+helm delete  -n $ns domino-triton
 
 ```
 
 ## Helm Install
 
 ```bash
-export ns=domino-inference-dev
-helm install  grpc-triton-domino  helm/grpc-triton-domino/ -n $ns -f helm/grpc-triton-domino/values.yaml
+export ns=domino-inference-test
+helm install  domino-triton  helm/domino-triton/ -n $ns -f helm/domino-triton/values.yaml
 ```
 
 
 ## Helm Upgrade
 
 ```bash
-export ns=domino-inference-dev
-helm upgrade  grpc-triton-domino  helm/grpc-triton-domino/ -n $ns -f helm/grpc-triton-domino/values.yaml
+export ns=domino-inference-test
+helm upgrade  domino-triton  helm/domino-triton/ -n $ns -f helm/domino-triton/values.yaml
 ```
 
 ## Testing the installation
@@ -114,4 +205,4 @@ The original video is located the `samples/video.avi` file. You can download the
 Download the annotated video by clicking the image below:
 [![Video Demo](results/screenshot.png)](https://github.com/domino-field/grpc-based-triton-integration/releases/download/do-not-use/annotated.mp4)
 
-The annotated json file can be downloaded file is located [here](./results/frame_counts.jsonl):
+The annotated json file can be downloaded file is located [here](./results/frame_counts.jsonl): 
