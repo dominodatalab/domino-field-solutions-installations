@@ -74,13 +74,13 @@ IAM Role Trust Relationship
         {
             "Effect": "Allow",
             "Principal": {
-                "Federated": "arn:aws:iam::11111111111:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/XXXXXXX"
+                "Federated": "arn:aws:iam::<AWS_ACCOUNT_ID>:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/<OIDC_PROVIDER>"
             },
             "Action": "sts:AssumeRoleWithWebIdentity",
             "Condition": {
                 "StringLike": {
-                    "oidc.eks.us-west-2.amazonaws.com/id/XXXXXXX:aud": "sts.amazonaws.com",
-                    "oidc.eks.us-west-2.amazonaws.com/id/XXXXXXX:sub": "system:serviceaccount:domino-platform:s3-csi-driver-sa"
+                    "oidc.eks.us-west-2.amazonaws.com/id/<OIDC_PROVIDER>:aud": "sts.amazonaws.com",
+                    "oidc.eks.us-west-2.amazonaws.com/id/<OIDC_PROVIDER>:sub": "system:serviceaccount:domino-platform:s3-csi-driver-sa"
                 }
             }
         }
@@ -205,4 +205,4 @@ The original video is located the `samples/video.avi` file. You can download the
 Download the annotated video by clicking the image below:
 [![Video Demo](results/screenshot.png)](https://github.com/domino-field/grpc-based-triton-integration/releases/download/do-not-use/annotated.mp4)
 
-The annotated json file can be downloaded file is located [here](./results/frame_counts.jsonl): 
+The annotated json file can be downloaded file is located [here](./results/frame_counts.jsonl):
