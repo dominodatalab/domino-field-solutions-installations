@@ -183,7 +183,7 @@ pip install --no-cache-dir \
     "requests==2.32.4" \
     "opencv-python-headless==4.10.0.84"
 
-export MM_ADDR=grpc-domino-triton-proxy.domino-inference-dev.svc.cluster.local:50051  # if using from inside the cluster
+export MM_ADDR=triton-inference-server-proxy.domino-inference-dev.svc.cluster.local:50051  # if using from inside the cluster
 export VIDEO_PATH=./samples/video.avi
 export MODEL_NAME=yolov8n
 export MODEL_VERSION=1
