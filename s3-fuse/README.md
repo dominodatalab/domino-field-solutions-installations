@@ -97,13 +97,13 @@ Create an IAM role with the following trust relationship policy to allow the Kub
         {
             "Effect": "Allow",
             "Principal": {
-                "Federated": "arn:aws:iam::1111111111:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/XXXXX"
+                "Federated": "arn:aws:iam::<AWS_ACCOUNT_ID>:oidc-provider/<OIDC_PROVIDER>"
             },
             "Action": "sts:AssumeRoleWithWebIdentity",
             "Condition": {
                 "StringLike": {
-                    "oidc.eks.us-west-2.amazonaws.com/id/XXXXX:aud": "sts.amazonaws.com",
-                    "oidc.eks.us-west-2.amazonaws.com/id/XXXXX:sub": "system:serviceaccount:domino-compute:aws-test",
+                    "oidc.eks.us-west-2.amazonaws.com/id/<OIDC_PROVIDER>:aud": "sts.amazonaws.com",
+                    "oidc.eks.us-west-2.amazonaws.com/id/<OIDC_PROVIDER>:sub": "system:serviceaccount:domino-compute:aws-test",
                    
                 }
             }
@@ -159,61 +159,7 @@ installation and management. This is the capability used in this guide.
 kubectl -n domino-platform create serviceaccount s3-csi-driver-sa
 ```
 
-### Create the IAM role and policy and attach the policy to the role
 
-IAM Role - `acme-s3-fuse-role`
-
-IAM Policy - `acme-s3-fuse-policy`
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:ListBucket",
-                "s3:GetBucketLocation"
-            ],
-            "Resource": [
-                "arn:aws:s3:::<BUCKET_NAME>"
-            ]
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:PutObject",
-                "s3:GetObject",
-                "s3:DeleteObject"
-            ],
-            "Resource": [
-                "arn:aws:s3:::<BUCKET_NAME>"
-            ]
-        }
-    ]
-}
-```
-
-IAM Role Trust Relationship 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": {
-                "Federated": "arn:aws:iam::11111111111:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/XXXXXXX"
-            },
-            "Action": "sts:AssumeRoleWithWebIdentity",
-            "Condition": {
-                "StringLike": {
-                    "oidc.eks.us-west-2.amazonaws.com/id/XXXXXXX:aud": "sts.amazonaws.com",
-                    "oidc.eks.us-west-2.amazonaws.com/id/XXXXXXX:sub": "system:serviceaccount:domino-platform:s3-csi-driver-sa"
-                }
-            }
-        }
-    ]
-}
-```
 
 ### Attach the IAM role to the service account
 
