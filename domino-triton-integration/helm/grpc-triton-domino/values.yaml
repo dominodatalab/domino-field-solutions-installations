@@ -1,0 +1,16 @@
+env:
+  compute_namespace: domino-compute
+  namespace:  domino-inference-dev
+  name: triton-inference-server
+  type: grpc-triton-domino
+proxy:
+  image: "quay.io/domino/grpc-domino-triton-proxy:v5"
+  replicas: 1
+triton_inference_server:
+  image: "nvcr.io/nvidia/tritonserver:23.03-py3"
+  replicas: 1
+persistence:
+  bucket: "<ADD_YOUR_S3_BUCKET_NAME>"
+  region: "us-west-2"
+istio:
+  enabled: false

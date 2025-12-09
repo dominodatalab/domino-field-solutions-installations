@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  triton-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.triton.proxy   # adjust if your proxy Dockerfile is named differently
+    container_name: grpc-domino-triton-proxy-k8s
+    restart: unless-stopped
+
+    environment:
+      # Talk to Triton via kubectl port-forward on the *host*
+      TRITON_URL: host.docker.internal:8001
+      BACKEND_ADDR: host.docker.internal:8001
+      # Domino auth endpoint for your interceptor
+      DOMINO_HOST: "https://sameer-w101811.cs.domino.tech"
+    volumes:
+      # If your proxy needs certs (or nothing if it doesn’t)
+      - ./crts:/crts:ro
+
+    ports:
+      - "50051:50051"   # gRPC for mm_client / mm_client_api
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',50051)); s.close()"]
+      interval: 10s
+      timeout: 3s
+      retries: 30

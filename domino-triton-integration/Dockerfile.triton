@@ -1,0 +1,39 @@
+# Dockerfile — Triton gRPC server (mount your model repo at /models)
+FROM nvcr.io/nvidia/tritonserver:24.10-py3
+
+# Non-root user (nobody-ish), create a writable but minimal home and model mount
+ARG USER_ID=65532
+ARG GROUP_ID=65532
+ENV MODEL_REPO=/models \
+    TRITON_GRPC_PORT=8001 \
+    TRITON_HTTP_PORT=8000 \
+    TRITON_METRICS_PORT=8002
+
+
+# Create group/user and model dir
+RUN groupadd -g ${GROUP_ID} tritonuser \
+ && useradd -u ${USER_ID} -g ${GROUP_ID} -M -s /sbin/nologin tritonuser \
+ && mkdir -p ${MODEL_REPO} \
+ && chown -R ${USER_ID}:${GROUP_ID} ${MODEL_REPO}
+
+# Expose only what you use (HTTP disabled below)
+EXPOSE 8001 8002
+
+# Optional: drop setcap/capabilities if present; keep binary path clean
+# No additional packages installed: keep surface minimal
+
+# Switch to non-root
+USER ${USER_ID}:${GROUP_ID}
+WORKDIR /home
+
+# Healthcheck: fail fast if server not responding on gRPC
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD /opt/tritonserver/bin/tritonserver --help >/dev/null 2>&1 || exit 1
+
+# Start Triton with gRPC only
+CMD ["/opt/tritonserver/bin/tritonserver", \
+     "--model-repository=/models", \
+     "--allow-grpc=true", "--grpc-port=8001", \
+     "--allow-http=false", "--http-port=8000", \
+     "--allow-metrics=true", "--metrics-port=8002", \
+     "--log-verbose=0"]

@@ -1,0 +1,309 @@
+// multimodal.proto
+// -----------------------------------------------------------------------------
+// Multimodal request/response schema for a thin Triton proxy.
+//
+// This file defines:
+//   - Common payload types (Text, Image, Audio, Video, Tensor, etc.).
+//   - Triton Control metadata (model, inputs, outputs, timeout).
+//   - A generic DataPacket envelope for streaming or unary requests.
+//   - Ack responses with status + timing metadata.
+//   - MultimodalService with unary and bidi-streaming RPCs.
+//
+// Typical flow (Triton thin proxy):
+//   Client:
+//     - Fills DataPacket.meta.correlation_id for tracking.
+//     - Fills DataPacket.control with model + I/O specs.
+//     - Sets DataPacket.event = SEV_DATA (optionally SEV_START / SEV_END).
+//     - Chooses exactly one payload (e.g., tensor, image, frame).
+//
+//   Proxy:
+//     - Validates Control + payload according to InputSpec.from.
+//     - Converts payload → Triton tensor(s) as needed.
+//     - Calls Triton Inference Server.
+//     - Responds with Ack containing status, message (often JSON), timings,
+//       and the resolved Control (after any default resolution).
+//
+// Notes:
+//   - This schema is intentionally general: you can route raw Tensors directly,
+//     or send encoded images/frames and let the service perform pre/post steps.
+//   - For the thin-proxy pattern, we typically use:
+//       SourceKind = SRC_TENSOR
+//       payload    = tensor
+//     so the proxy performs no pre/post; it just forwards bytes to Triton.
+// -----------------------------------------------------------------------------
+
+syntax = "proto3";
+
+package multimodal;
+
+option go_package = "multimodalpb";
+
+// ============================================================
+//  Base Payload Types
+//  - Atomic multimodal units that can appear inside DataPacket.
+// ============================================================
+
+// Simple UTF-8 text payload (e.g., prompts, captions, metadata).
+message Text {
+  string text = 1;
+}
+
+// Single encoded image (e.g., JPEG/PNG).
+message Image {
+  string mime = 1;   // e.g., "image/png" or "image/jpeg"
+  bytes  data = 2;   // encoded image bytes
+}
+
+// Single encoded audio clip (e.g., WAV).
+message Audio {
+  string mime = 1;           // e.g., "audio/wav"
+  int32 sample_rate_hz = 2;  // sample rate in Hz
+  bytes data = 3;            // encoded or raw PCM bytes (implementation-defined)
+}
+
+// Entire video container as one payload (for non-streaming use-cases).
+message Video {
+  string container_mime = 1;   // e.g., "video/mp4", "video/webm"
+  string codec = 2;            // e.g., "h264", "h265"
+  uint32 width = 3;
+  uint32 height = 4;
+  float  fps = 5;
+  uint64 duration_ms = 6;      // total duration in milliseconds
+  bytes  data = 10;            // full container bytes
+}
+
+// Chunked video transport for large or live content.
+//
+// Use when you want to stream a video container over multiple DataPackets,
+// rather than sending it as a single monolithic Video message.
+message VideoChunk {
+  string container_mime = 1;
+  string codec = 2;
+  uint32 width = 3;
+  uint32 height = 4;
+  float  fps = 5;
+
+  uint64 total_size = 10;     // total container bytes (if known)
+  uint32 chunk_index = 11;    // 0-based index of this chunk
+  uint32 total_chunks = 12;   // total number of chunks, or 0 if unknown/open-ended
+  bytes  data = 20;           // raw chunk bytes
+}
+
+// ============================================================
+//  Metadata
+//  - Cross-cutting metadata for tracing / correlation.
+// ============================================================
+
+// Per-request or per-packet metadata used for correlation and human-readable notes.
+message Meta {
+  string correlation_id = 1;  // trace or correlation identifier (e.g., "cam-001:42")
+  string note = 2;            // optional human-readable note or debug string
+}
+
+// ============================================================
+//  Frame Types
+//  - Higher-level notion of "video frame" for image-based streaming.
+// ============================================================
+
+// Describes the properties and position of a frame in a logical stream.
+message FrameMeta {
+  string stream_id = 1;   // camera/video id (e.g., "cam-001")
+  uint64 frame_seq = 2;   // 0,1,2... sequential frame index
+  uint64 ts_ms = 3;       // source timestamp in milliseconds (e.g., wall-clock or PTS)
+  uint32 orig_w = 4;      // original frame width  (before any preprocessing)
+  uint32 orig_h = 5;      // original frame height (before any preprocessing)
+}
+
+// Encoded video frame as a standalone unit.
+//
+// Used when you want per-frame semantics (e.g., real-time camera pipeline)
+// rather than dealing with a full video container.
+message Frame {
+  FrameMeta fm = 1;
+  string mime = 2;        // "image/jpeg" strongly preferred (for compactness)
+  bytes  data = 3;        // encoded frame bytes (JPEG/PNG/etc.)
+}
+
+// ============================================================
+//  Triton / Proxy Control Types
+//  - Typed description of how payloads are mapped to Triton tensors.
+// ============================================================
+
+// Restricted dtype enum used by the Triton thin proxy.
+// Map these to Triton's types or other runtime types as needed.
+enum DataType {
+  DT_INVALID = 0;
+  DT_FP32    = 1;
+  DT_FP16    = 2;
+  DT_INT8    = 3;
+  DT_INT32   = 4;
+  DT_INT64   = 5;
+}
+
+// Tensor shape descriptor.
+// Always include batch dimension when present (e.g., [1, 3, 640, 640]).
+message Shape {
+  repeated int64 dims = 1;   // e.g., [N, C, H, W]
+}
+
+// Raw tensor payload: dtype + shape + contiguous bytes.
+//
+// This is the preferred payload for the "thin" Triton proxy, which does not
+// perform pre/post; it simply forwards these bytes to the Triton model.
+message Tensor {
+  DataType dtype = 1;
+  Shape    shape = 2;
+  bytes    data  = 3;        // raw, C-contiguous tensor bytes for the given shape/dtype
+}
+
+// Indicates where an input tensor originates from within a DataPacket.
+//
+// The proxy chooses a different preprocessing path based on this value:
+//   SRC_IMAGE  → decode from Image.data
+//   SRC_FRAME  → decode from Frame.data
+//   SRC_TENSOR → use Tensor.data as-is
+enum SourceKind {
+  SRC_UNSPECIFIED = 0;
+  SRC_IMAGE = 1;   // encoded JPEG/PNG in Image.data
+  SRC_FRAME = 2;   // encoded JPEG/PNG in Frame.data
+  SRC_TENSOR = 3;  // raw in Tensor.data
+}
+
+// Typed description of a single model input.
+//
+message InputSpec {
+  string name = 1;          // e.g., "images" (Triton input name)
+  Shape shape = 2;          // e.g., [1,3,640,640]
+  DataType dtype = 3;       // e.g., DT_FP32
+  SourceKind from = 4;      // SRC_IMAGE / SRC_FRAME / SRC_TENSOR
+}
+
+// Optional model output hints for the proxy/client.
+//
+// These are not strictly required by the schema but can be used to:
+//   - Request specific output names from Triton.
+//   - Carry expected dtype/shape for validation or client decoding.
+message OutputSpec {
+  string name = 1;          // e.g., "output0" (Triton output name)
+  DataType dtype = 2;       // optional but useful for sanity checks
+  Shape shape = 3;          // optional (e.g., expected static shape)
+}
+
+// Aggregate control block for a Triton request.
+//
+// This is the primary "contract" between client and proxy. Clients fill this
+// in to express which model to run and how to interpret input payloads
+// (InputSpec.from + DataPacket.payload), and which outputs they want back.
+message Control {
+  string model = 1;               // Triton model name
+  string model_version = 2;       // optional model version string
+  repeated InputSpec inputs = 3;  // one entry per logical input
+  repeated OutputSpec outputs = 4;// requested outputs
+  float timeout_secs = 5;         // per-request timeout; default handled by server
+  map<string,string> extra = 10;  // extension metadata (e.g., debug flags, routing hints)
+}
+
+// ============================================================
+//  Streaming Control
+//  - Logical stream lifecycle markers for Chat-style RPCs.
+// ============================================================
+
+// Signals control the lifecycle of a logical stream over Chat.
+//
+// SEV_DATA packets carry the actual payloads.
+// SEV_START / SEV_END can be used to delimit logical sessions (e.g., video).
+// Thin, stateless proxies can ignore START/END and treat everything as DATA.
+enum StreamEvent {
+  SEV_UNSPECIFIED = 0;
+  SEV_START = 1;   // begin logical request (e.g., video start)
+  SEV_END = 2;     // flush & finalize logical stream
+  SEV_DATA = 3;    // default for data-carrying packets
+}
+
+// ============================================================
+//  Envelope & Acknowledgment
+//  - DataPacket wraps request payloads; Ack wraps responses.
+// ============================================================
+
+// Envelope for all inbound traffic to the MultimodalService.
+//
+// Each DataPacket represents one "unit of work" and carries:
+//   - Meta: correlation id, notes.
+//   - Control: model, inputs, outputs, timeout, etc.
+//   - StreamEvent: logical stream marker.
+//   - Exactly one payload in the `oneof` (text/image/audio/video/frame/tensor/...).
+message DataPacket {
+  Meta meta = 1;
+  Control control = 2;       // typed control metadata (may be partially filled)
+  StreamEvent event = 3;     // stream signal (START/END/DATA)
+
+  oneof payload {
+    Text text = 10;
+    Image image = 11;
+    Audio audio = 12;
+    Video video = 13;
+    VideoChunk video_chunk = 14;
+    Frame frame = 15;
+    Tensor tensor = 16;      // explicit raw tensor type (preferred for thin proxy)
+  }
+}
+
+// High-level status codes for responses.
+enum StatusCode {
+  OK = 0;
+  BAD_REQUEST = 1;  // invalid Control, payload mismatch, etc.
+  TIMEOUT = 2;      // exceeded timeout_secs or backend timeout
+  INTERNAL = 3;     // unexpected server/proxy error
+  UNSUPPORTED = 4;  // unsupported SourceKind, dtype, or other capability
+}
+
+// Breakdown of latency across stages (as understood by the server/proxy).
+message Timing {
+  double recv_to_decode_ms = 1;  // request arrival → decoded DataPacket
+  double preprocess_ms     = 2;  // time spent in pre-processing
+  double triton_queue_ms   = 3;  // time spent waiting in Triton queues
+  double triton_infer_ms   = 4;  // time spent in Triton inference proper
+  double postprocess_ms    = 5;  // time spent in post-processing
+  double total_ms          = 6;  // end-to-end time for handling this DataPacket
+}
+
+// Response envelope for any request (unary or streaming).
+//
+// The `message` field is intentionally free-form: most implementations use JSON
+// with fields like "backend", "model", "outputs", etc.
+//
+// `resolved_control` can reflect the exact Control the server ended up using
+// (after applying defaults or environment-based resolution).
+message Ack {
+  string correlation_id = 1;      // usually echoes DataPacket.meta.correlation_id
+  StatusCode status = 2;
+  string message = 3;             // human-readable string or structured JSON blob
+  int64  bytes_seen = 4;          // number of request bytes consumed (for accounting)
+  Control resolved_control = 5;   // final control after defaults/env applied
+  Timing timing = 6;              // timing breakdown for this unit of work
+}
+
+// ============================================================
+//  Service Definition
+//  - Unary and bidi-streaming entrypoints for clients.
+// ============================================================
+
+service MultimodalService {
+  // Simple unary request/response.
+  //
+  // Use when you have a single DataPacket and expect a single Ack,
+  // e.g., non-streaming use-cases or simple RPC-style operations.
+  rpc SendUnary (DataPacket) returns (Ack);
+
+  // Bidirectional streaming interface.
+  //
+  // Use for:
+  //   - Video or camera streams (many DataPackets per logical session).
+  //   - Chunked video or audio transport.
+  //   - Any scenario with incremental results or long-lived sessions.
+  //
+  // Each inbound DataPacket should be matched by one or more Ack messages.
+  // The exact mapping (1:1 vs 1:N) is implementation-specific, but in the
+  // thin-proxy pattern we generally do 1:1: one Ack per DataPacket.
+  rpc Chat (stream DataPacket) returns (stream Ack);
+}

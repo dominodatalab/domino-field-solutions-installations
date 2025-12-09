@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: extended-ds-platform-pv
+spec:
+  capacity:
+    storage: 10Gi                  # ignored by S3, required by K8s
+  accessModes: [ ReadWriteMany ]
+  storageClassName: ""             # static provisioning
+  claimRef:
+    namespace: domino-platform
+    name: extended-ds-platform-pvc
+  csi:
+    driver: s3.csi.aws.com
+    volumeHandle: s3-csi-domino-dataset-s3    # <- UNIQUE per PV
+    volumeAttributes:
+      bucketName: wgamage
+      shareName: ext-s3-datastore
+  mountOptions:
+    - "--region=us-west-2"
+    - "--prefix=fileshare/"
+    - "--uid=12574"
+    - "--gid=12574"
+    - "--allow-other"
+    - "--allow-overwrite"
+    - "--allow-delete"
+
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: extended-ds-platform-pvc
+  namespace: domino-platform
+  labels:
+    dominodatalab.com/external-data-volume-ignore: Generic
+spec:
+  accessModes: [ ReadWriteMany ]
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 10Gi
+  volumeName: extended-ds-platform-pv
+
+---
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: extended-ds-compute-pv
+spec:
+  capacity:
+    storage: 10Gi                  # ignored by S3, required by K8s
+  accessModes: [ ReadWriteMany ]
+  storageClassName: ""             # static provisioning
+  claimRef:
+    namespace: domino-compute
+    name: extended-ds-compute-pvc
+  csi:
+    driver: s3.csi.aws.com
+    volumeHandle: s3-csi-domino-dataset-s3    # <- UNIQUE per PV
+    volumeAttributes:
+      bucketName: wgamage
+      shareName: ext-s3-datastore
+  mountOptions:
+    - "--region=us-west-2"
+    - "--uid=12574"
+    - "--gid=12574"
+    - "--allow-other"
+    - "--allow-overwrite"
+    - "--allow-delete"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: extended-ds-compute-pvc
+  namespace: domino-compute
+  labels:
+    dominodatalab.com/external-data-volume-ignore: Generic
+spec:
+  accessModes: [ ReadWriteMany ]
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 10Gi
+  volumeName: extended-ds-compute-pv

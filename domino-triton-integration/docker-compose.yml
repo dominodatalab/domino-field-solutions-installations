@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.triton   # <-- was Dockerfile.proxy
+    container_name: grpc-domino-triton-backend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"   # Triton gRPC
+      - "8002:8002"   # Triton metrics
+      # (8000 is Triton HTTP/REST; expose it if you need it)
+      # - "8000:8000"
+    volumes:
+      - ./models:/models:ro           # your model repository
+    # No auth/TLS env here — this is Triton, not your thin proxy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8002/metrics"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.triton.proxy   # uncomment if your proxy Dockerfile name differs
+    container_name: grpc-domino-triton-proxy
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      BACKEND_ADDR: backend:8001
+      TRITON_URL: backend:8001
+      DOMINO_HOST: https://sameer-w101811.cs.domino.tech
+    volumes:
+      - ./crts:/crts:ro
+    ports:
+      - "50051:50051"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',50051)); s.close()"]
+      interval: 10s
+      timeout: 3s
+      retries: 30

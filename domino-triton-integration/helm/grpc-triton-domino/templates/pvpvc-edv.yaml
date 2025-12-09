@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dc-{{.Values.env.namespace}}-{{.Values.env.name}}-pv
+spec:
+  capacity:
+    storage: 10Gi                  # ignored by S3, required by K8s
+  accessModes: [ ReadWriteMany ]
+  storageClassName: ""             # static provisioning
+  claimRef:
+    namespace: {{.Values.env.compute_namespace}}
+    name: dc-{{.Values.env.namespace}}-{{.Values.env.name}}-pvc
+  csi:
+    driver: s3.csi.aws.com
+    volumeHandle: s3-csi-dc-{{.Values.env.name}}   # <- UNIQUE per PV
+    volumeAttributes:
+      bucketName: {{.Values.persistence.bucket}}
+  mountOptions:
+    - "--region={{.Values.persistence.region}}"
+    - "--prefix=triton/{{.Values.env.namespace}}/{{.Values.env.name}}/models/"
+    - "--uid=12574"
+    - "--gid=12574"
+    - "--allow-overwrite"
+    - "--allow-delete"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dc-{{.Values.env.namespace}}-{{.Values.env.name}}-pvc
+  namespace: {{.Values.env.compute_namespace}}
+  labels:
+    dominodatalab.com/external-data-volume: Generic
+spec:
+  accessModes: [ ReadWriteMany ]
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 10Gi
+  volumeName: dc-{{.Values.env.namespace}}-{{.Values.env.name}}-pv

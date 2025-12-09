@@ -1,0 +1,12 @@
+apiVersion: v1
+name: grpc-triton-domino
+version: 0.0.1
+description: Expose Triton inference server deployed models via gRPC
+home: https://github.com/domino-field/grpc-based-triton-integration.git
+keywords:
+  - triton-inference
+  - dominodatalab
+  - gRpc
+maintainers:
+  - email: sameer.wadkar@dominodatalab.com
+    name: Sameer Wadkar
