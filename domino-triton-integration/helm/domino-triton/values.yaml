@@ -1,0 +1,27 @@
+env:
+  compute_namespace: domino-compute
+  namespace:  domino-inference-dev
+  node_selector: default-gpu
+  memory: 24Gi
+  cores: 1
+  gpu: 1
+  name: triton-inference-server
+  type: domino-triton-inference
+  claim_based: true
+proxy:
+  grpc_image: "quay.io/domino/domino-triton-grpc-proxy:v1"
+  rest_image: "quay.io/domino/domino-triton-rest-proxy:v1"
+  replicas: 1
+admin:
+  image: "quay.io/domino/domino-triton-admin:v1"
+  replicas: 1
+  domino_service_auth_key: "domino-service-auth"
+triton_inference_server:
+  image: "nvcr.io/nvidia/tritonserver:23.03-py3"
+  replicas: 1
+persistence:
+  bucket: <ADD_YOUR_BUCKET_NAME_HERE>
+  region: <ADD_YOUR_BUCKET_REGION_HERE>
+istio:
+  enabled: false
+

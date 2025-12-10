@@ -12,12 +12,12 @@ spec:
     metadata:
       labels:
         app: {{.Values.env.name}}-proxy
-        role: grpc-triton-proxy
+        type: {{.Values.env.type}}
         nucleus-client: "true"
     spec:
       containers:
-      - name: proxy
-        image: {{.Values.proxy.image}}
+      - name: grpc-proxy
+        image: {{.Values.proxy.grpc_image}}
         imagePullPolicy: Always
         securityContext:
           runAsUser: 1000
@@ -36,6 +36,38 @@ spec:
         ports:
         - containerPort: 50051
           name: grpc
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+      # ----------------------------------------------------
+      # REST Proxy Container (NEW)
+      # ----------------------------------------------------
+      - name: rest-proxy
+        image: {{.Values.proxy.rest_image}}
+        imagePullPolicy: Always
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+        env:
+        - name: TRITON_HTTP_URL
+          value: "http://{{.Values.env.name}}:8000"   # Triton REST port
+        - name: DOMINO_HOST
+          value: "http://nucleus-frontend.domino-platform:80"
+        - name: PROXY_HOST
+          value: "0.0.0.0"
+        - name: PROXY_PORT
+          value: "8080"
+        - name: TRITON_TIMEOUT_SECS
+          value: "30"
+        ports:
+        - containerPort: 8080
+          name: rest
         resources:
           requests:
             cpu: "250m"

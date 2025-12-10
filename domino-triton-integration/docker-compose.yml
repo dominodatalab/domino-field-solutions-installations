@@ -4,27 +4,26 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.triton   # <-- was Dockerfile.proxy
-    container_name: grpc-domino-triton-backend
+      dockerfile: Dockerfile.triton   # <-- Triton server
+    container_name: domino-triton-backend
     restart: unless-stopped
     ports:
       - "8001:8001"   # Triton gRPC
       - "8002:8002"   # Triton metrics
-      # (8000 is Triton HTTP/REST; expose it if you need it)
-      # - "8000:8000"
+      - "8000:8000"   # Triton HTTP/REST (needed for REST proxy)
     volumes:
       - ./models:/models:ro           # your model repository
-    # No auth/TLS env here — this is Triton, not your thin proxy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8002/metrics"]
       interval: 10s
       timeout: 3s
       retries: 30
+
   proxy:
     build:
       context: .
-      dockerfile: Dockerfile.triton.proxy   # uncomment if your proxy Dockerfile name differs
-    container_name: grpc-domino-triton-proxy
+      dockerfile: Dockerfile.triton.grpc.proxy
+    container_name: domino-triton-grpc-proxy
     restart: unless-stopped
     depends_on:
       backend:
@@ -42,3 +41,27 @@ services:
       interval: 10s
       timeout: 3s
       retries: 30
+
+  rest-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.triton.rest.proxy   # adjust if you named it differently
+    container_name: domino-triton-rest-proxy
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      TRITON_HTTP_URL: http://backend:8000
+      DOMINO_HOST: https://sameer-w101811.cs.domino.tech
+      PROXY_HOST: 0.0.0.0
+      PROXY_PORT: 8080
+      TRITON_TIMEOUT_SECS: 30
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+

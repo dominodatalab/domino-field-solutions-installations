@@ -23,6 +23,20 @@ spec:
         security.istio.io/tlsMode: "istio"
 
     spec:
+      nodeSelector:
+        dominodatalab.com/node-pool: {{ .Values.env.node_selector}}
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+        - effect: NoExecute
+          key: node.kubernetes.io/not-ready
+          operator: Exists
+          tolerationSeconds: 300
+        - effect: NoExecute
+          key: node.kubernetes.io/unreachable
+          operator: Exists
+          tolerationSeconds: 300
       containers:
       - name: triton
         securityContext:
@@ -43,9 +57,13 @@ spec:
 
         resources:
           requests:
-            cpu: "1"
-            memory: "8Gi"
-
+            cpu: {{ .Values.env.cores }}
+            memory: "{{ .Values.env.memory }}"
+            nvidia.com/gpu:  {{ .Values.env.gpu }}
+          limits:
+            cpu: {{ .Values.env.cores }}
+            memory: "{{ .Values.env.memory }}"
+            nvidia.com/gpu:  {{ .Values.env.gpu }}
         ports:
           - containerPort: 8000
             name: http
@@ -57,7 +75,13 @@ spec:
         volumeMounts:
           - mountPath: "/models"
             name: models-vol
+          - mountPath: /dev/shm
+            name: dshm
       volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 10Gi
         - name: models-vol
           persistentVolumeClaim:
             claimName: {{ .Values.env.name }}-pvc

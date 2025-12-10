@@ -3,10 +3,11 @@ apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication
 metadata:
   name: {{.Values.env.name}}
+  namespace: {{.Values.env.namespace}}
 spec:
   selector:
     matchLabels:
       app: {{.Values.env.name}}
   mtls:
-    mode: DISABLE
+    mode: STRICT
 {{- end }}

@@ -19,6 +19,7 @@ As a pre-requistite, please make sure you have the following:
 1. An S3 bucket created to store the models
 2. A AWS role and policy with full access to the S3 bucket
 
+
 ### Installation for the S3 Fuse CSI Driver
 
 The capability uses the AWS IRSA (IAM Roles for Service Accounts) feature to secure access to S3 buckets. 
@@ -108,6 +109,15 @@ helm upgrade --install aws-mountpoint-s3-csi-driver \
   aws-mountpoint-s3-csi-driver/aws-mountpoint-s3-csi-driver
 ```
 
+## Images needed for the installation
+
+This installation needs the following images to be available in your container registry:
+
+1. Domino Admin image - `quay.io/domino/domino-triton-admin:v1.0.0"`
+2. Domino Triton Rest Proxy image - `quay.io/domino/domino-triton-rest-proxy:v1.0.0`
+3. Domino Triton gRPC Proxy image - `quay.io/domino/domino-triton-grpc-proxy:v1.0.0`
+4. NVIDIA Triton Inference Server image - `nvcr.io/nvidia/tritonserver:23.03-py3`
+
 
 ## Create Namespace
 
@@ -119,17 +129,17 @@ authz purposes. Nucleus frontend will reject requests from namespace without thi
 The other label `domino-triton=true` marks this namespace as hosting a Domino Triton installation.
 
 ```bash
-
-kubectl create namespace domino-inference-dev
+export ns=domino-inference-dev
+kubectl create namespace ${ns}
 
 ## Label Namespace for Domino Compute
-kubectl label namespace domino-inference-dev domino-compute=true
-kubectl label namespace domino-inference-dev domino-triton=true
+kubectl label namespace ${ns} domino-compute=true
+kubectl label namespace ${ns} domino-triton=true
 ```
 ## Helm Delete
 
 ```bash
-export ns=domino-inference-test
+export ns=domino-inference-dev
 helm delete  -n $ns domino-triton
 
 ```
@@ -137,7 +147,7 @@ helm delete  -n $ns domino-triton
 ## Helm Install
 
 ```bash
-export ns=domino-inference-test
+export ns=domino-inference-dev
 helm install  domino-triton  helm/domino-triton/ -n $ns -f helm/domino-triton/values.yaml
 ```
 
@@ -145,21 +155,15 @@ helm install  domino-triton  helm/domino-triton/ -n $ns -f helm/domino-triton/va
 ## Helm Upgrade
 
 ```bash
-export ns=domino-inference-test
+export ns=domino-inference-dev
 helm upgrade  domino-triton  helm/domino-triton/ -n $ns -f helm/domino-triton/values.yaml
 ```
 
 ## Testing the installation
 
-This assumes that your have created and mounted an EDV (created in this installation) into a workpspace and copied
-the  folder structure `yolov8n` from the `./models` folder into the EDV:
-The EDV should have the following structure:
-
-```bash
--yolov8n
-  -1    
-    -model.onnx
-  -config.pbtxt
+### First add the following claims for the admin user in keycloak
+```json
+[{"namespace":"domino-inference-dev","service":"triton-inference-server","role":{"admin":true}} ]
 ```
 
 
@@ -206,3 +210,5 @@ Download the annotated video by clicking the image below:
 [![Video Demo](results/screenshot.png)](https://github.com/domino-field/grpc-based-triton-integration/releases/download/do-not-use/annotated.mp4)
 
 The annotated json file can be downloaded file is located [here](./results/frame_counts.jsonl):
+
+The full notebooks used to create the client and test the installation are located in the `notebooks/` folder.

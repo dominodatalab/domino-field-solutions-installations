@@ -1,0 +1,60 @@
+# ------------------------------------------------------------------------------
+# Thin Triton REST Proxy - multi-stage
+# ------------------------------------------------------------------------------
+
+ARG pythonversion=3.11
+
+# =========================
+# Build stage
+# =========================
+FROM cgr.dev/dominodatalab.com/python:${pythonversion}-dev AS build
+
+ENV PYTHONUNBUFFERED=true \
+    PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+
+# Copy REST proxy code
+# (assumes src/rest_triton_proxy.py in your repo)
+COPY src/triton_rest_proxy.py ./
+
+# Create venv and install deps *into venv*
+RUN python -m venv venv
+ENV PATH="/app/venv/bin:$PATH"
+
+RUN pip install --no-cache-dir \
+    "fastapi==0.115.6" \
+    "uvicorn[standard]==0.32.0" \
+    "requests==2.32.4"
+
+# Optional sanity check in build stage
+RUN python -c "import fastapi, uvicorn, requests; print('OK fastapi=', fastapi.__version__)"
+
+# =========================
+# Runtime stage
+# =========================
+FROM cgr.dev/dominodatalab.com/python:${pythonversion}
+
+ENV PYTHONUNBUFFERED=true
+
+WORKDIR /app
+
+# Make sure venv python is first on PATH
+ENV PATH="/app/venv/bin:$PATH"
+
+# Copy everything from build stage (code + venv)
+COPY --from=build /app /app
+
+# Runtime configuration defaults
+ENV PROXY_HOST=0.0.0.0 \
+    PROXY_PORT=8080 \
+    TRITON_HTTP_URL=http://backend:8000 \
+    TRITON_TIMEOUT_SECS=30 \
+    DOMINO_HOST=""
+
+EXPOSE 8080
+
+# IMPORTANT:
+# - PATH points to /app/venv/bin first
+# - `uvicorn` is from the venv with fastapi installed
+ENTRYPOINT ["uvicorn", "triton_rest_proxy:app", "--host", "0.0.0.0", "--port", "8080"]
