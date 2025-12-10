@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Values.env.name}}-admin
+  namespace: {{.Values.env.namespace}}
+spec:
+  replicas:  {{.Values.admin.replicas}}
+  selector:
+    matchLabels:
+      app: {{.Values.env.name}}-admin
+  template:
+    metadata:
+      labels:
+        app: {{.Values.env.name}}-admin
+        type: {{.Values.env.type}}
+        nucleus-client: "true"
+    spec:
+      serviceAccountName: {{ .Values.env.name }}-admin-sa
+      containers:
+      - name: admin
+        image: {{.Values.admin.image}}
+        imagePullPolicy: Always
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        env:
+        - name: INFERENCE_SERVER_DEPLOYMENT_NAME
+          value: {{ .Values.env.name }}
+        - name: DOMINO_HOST
+          value: "http://nucleus-frontend.domino-platform:80"
+        - name: CLAIM_BASED
+          value: "{{ .Values.env.claim_based }}"
+        - name: CLAIM_SERVICE
+          value: "{{ .Values.env.name }}"
+        - name: CLAIM_ROLE
+          value: "admin"
+        - name: DOMINO_SERVICE_AUTH_KEY
+          value: "{{ .Values.admin.domino_service_auth_key }}"
+        ports:
+        - containerPort: 8000
+          name: admin
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"

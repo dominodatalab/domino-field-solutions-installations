@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{.Values.env.name}}-proxy
+  namespace: {{.Values.env.namespace}}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{.Values.env.name}}-proxy
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{.Values.env.compute_namespace}}
+        # (optional, but nice to be explicit)
+      ports:
+        - port: 50051
+          protocol: TCP
+        - port: 8080
+          protocol: TCP

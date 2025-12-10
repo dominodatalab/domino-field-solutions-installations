@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.env.name }}-admin-sa
+  namespace: {{ .Values.env.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.env.name }}-admin-role
+  namespace: {{ .Values.env.namespace }}
+rules:
+  # Existing: control the Deployment + scale subresource
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+
+  # NEW: list/get/watch pods for status + selecting a pod for logs
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+  # NEW: read logs from pods
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.env.name }}-admin-rb
+  namespace: {{ .Values.env.namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.env.name }}-admin-sa
+    namespace: {{ .Values.env.namespace }}
+roleRef:
+  kind: Role
+  name: {{ .Values.env.name }}-admin-role
+  apiGroup: rbac.authorization.k8s.io

@@ -16,4 +16,8 @@ spec:
           app: {{.Values.env.name}}-proxy
     ports:
     - protocol: TCP
+      port: 8000   # Triton rest port
+    - protocol: TCP
       port: 8001   # Triton gRPC port
+    - protocol: TCP
+      port: 8002   # Triton metrics port

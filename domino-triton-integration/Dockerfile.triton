@@ -17,7 +17,7 @@ RUN groupadd -g ${GROUP_ID} tritonuser \
  && chown -R ${USER_ID}:${GROUP_ID} ${MODEL_REPO}
 
 # Expose only what you use (HTTP disabled below)
-EXPOSE 8001 8002
+EXPOSE 8000 8001 8002
 
 # Optional: drop setcap/capabilities if present; keep binary path clean
 # No additional packages installed: keep surface minimal
@@ -34,6 +34,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 CMD ["/opt/tritonserver/bin/tritonserver", \
      "--model-repository=/models", \
      "--allow-grpc=true", "--grpc-port=8001", \
-     "--allow-http=false", "--http-port=8000", \
+     "--allow-http=true", "--http-port=8000", \
      "--allow-metrics=true", "--metrics-port=8002", \
      "--log-verbose=0"]
