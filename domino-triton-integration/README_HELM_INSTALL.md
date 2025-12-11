@@ -94,7 +94,7 @@ IAM Role Trust Relationship
 ```bash
 
 export AWS_ACCOUNT_ID=<account-id>
-export AWS_ROLE_ARN=arn:aws:iam::${AWS_ACCOUNT_ID}:role/acme-s3-fuse-role
+export AWS_ROLE_ARN=<ROLE_ARN>
 export platform_namespace=domino-platform
 export s3_csi_driver_sa=s3-csi-driver-sa
 
