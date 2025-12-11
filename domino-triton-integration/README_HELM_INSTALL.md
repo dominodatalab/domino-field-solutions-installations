@@ -60,7 +60,7 @@ IAM Policy - `acme-s3-fuse-policy`
                 "s3:DeleteObject"
             ],
             "Resource": [
-                "arn:aws:s3:::<BUCKET_NAME>"
+                "arn:aws:s3:::<BUCKET_NAME>/*"
             ]
         }
     ]
