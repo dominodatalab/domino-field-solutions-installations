@@ -138,7 +138,7 @@ def _empty_dets():
     )
 
 
-def parse_yolo_outputs(outs: List[np.ndarray], conf_thres: float = 0.25):
+def parse_yolo_outputs(outs: List[np.ndarray], conf_thres: float = 0.15):
     """
     Parse YOLO-style outputs into (boxes, scores, classes).
 
@@ -246,7 +246,7 @@ def nms_per_class(
     boxes: np.ndarray,
     scores: np.ndarray,
     classes: np.ndarray,
-    iou_thres: float = 0.5,
+    iou_thres: float = 0.6,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Class-wise Non-Maximum Suppression.
