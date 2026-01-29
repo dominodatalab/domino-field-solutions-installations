@@ -1,0 +1,10 @@
+piVersion: v1
+kind: ServiceAccount
+metadata:
+  name: user1
+  namespace: domino-compute
+  labels:
+    domino/user-name: user1
+    domino/custom: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::1111111111111:role/acme_domino_default_role

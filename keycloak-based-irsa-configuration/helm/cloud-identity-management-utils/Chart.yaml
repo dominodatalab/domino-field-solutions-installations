@@ -1,0 +1,14 @@
+apiVersion: v2
+name: cloud-identity-management-utils
+version: 1.0.0
+description: Utilities to manage cloud identities in Domino deployments
+home: https://github.com/domino-field/cloud-identity-management-utils.git
+keywords:
+  - irsa
+  - dominodatalab
+  - irsa-lite
+  - irsa-mapper
+  - keycloak-based-mapping
+maintainers:
+  - email: sameer.wadkar@dominodatalab.com
+    name: Sameer Wadkar

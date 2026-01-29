@@ -1,0 +1,23 @@
+{
+  "root": "domino-irsa-roles",
+  "children": [
+    {
+      "target-role-name":"arn:aws:iam::<ACCOUNT_NO>:role/acme_your_role_1",
+      "members": ["user-1"]
+    },
+    {
+      "target-role-name":"arn:aws:iam::<ACCOUNT_NO>:role/acme_your_role_2",
+      "members": ["user-1", "user-2"]
+    },
+    {
+      "target-role-name":"arn:aws:iam::<ACCOUNT_NO>:role/acme_your_role_3",
+      "members": []
+    },
+    {
+      "proxy-role-name":"arn:aws:iam::<ACCOUNT_NO>:role/acme_your_role_4",
+      "target-role-name":"arn:aws:iam::<ACCOUNT_NO>:role/acme_your_role_5",
+      "members": ["user-3"]
+    }
+  ]
+
+}

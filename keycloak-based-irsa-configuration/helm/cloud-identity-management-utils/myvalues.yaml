@@ -1,0 +1,18 @@
+env:
+  name: domino-irsa-lite
+  compute_namespace: domino-compute
+  namespace:  domino-field
+side_car:
+  claim_name: "domino-irsa-roles"
+  image: "quay.io/domino/domino-kc-groups-based-irsa-mapper:prod-v1"
+admin:
+  image: "quay.io/domino/cloud-identity-management-utils:prod-v1"
+  iam_role_arn: "arn:aws:iam::11111111111:role/acme_domino_irsa_admin_role"
+  oidc_provider_url: "oidc.eks.us-west-2.amazonaws.com/id/AAAAAAAAAAAAAAAAAAAAAAAAAA"
+  kc_url: "http://keycloak-http.domino-platform.svc.cluster.local:80/auth"
+  kc_realm: "DominoRealm"
+  kc_client_id: "irsa-mapping-manager"
+  kc_client_secret: "HGGGGGG"
+  kc_irsa_root_group: "domino-irsa-roles"
+istio:
+  enabled: false

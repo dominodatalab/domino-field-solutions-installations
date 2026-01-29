@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{.Values.env.name}}-admin
+  namespace: {{.Values.env.namespace}}
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app: {{.Values.env.name}}-admin

@@ -1,0 +1,62 @@
+apiVersion: apps.dominodatalab.com/v1alpha1
+kind: Mutation
+metadata:
+  name: {{.Values.env.name}}
+  namespace: domino-platform
+rules:
+# Map to individual users, azure
+- labelSelectors:
+  - "dominodatalab.com/workload-engine=cg2"
+  insertContainer:
+    containerType: app
+    spec:
+      command:
+      - python
+      - irsa_client.py
+      image: {{.Values.side_car.image}}
+      imagePullPolicy: Always
+      name: irsa-initializer
+- labelSelectors:
+  - "dominodatalab.com/workload-engine=cg2"
+  insertVolumes:
+   - emptyDir: {}
+     name: aws-irsa-config
+- labelSelectors:
+  - "dominodatalab.com/workload-engine=cg2"
+  insertVolumeMounts:
+    containerSelector:
+      - run
+      - irsa-initializer
+    volumeMounts:
+      - mountPath: /etc/.aws/
+        name: aws-irsa-config
+- labelSelectors:
+  - "dominodatalab.com/workload-engine=cg2"
+  cloudWorkloadIdentity:
+    cloud_type: aws
+    assume_sa_mapping: true
+- labelSelectors:
+  - "dominodatalab.com/workload-engine=cg2"
+  modifyEnv:
+    containerSelector:
+    - run
+    env:
+    - name: AWS_CONFIG_FILE
+      value: /etc/.aws/config
+- labelSelectors:
+  - "dominodatalab.com/workload-engine=cg2"
+  modifyEnv:
+    containerSelector:
+    - irsa-initializer
+    env:
+    - name: DOMINO_API_PROXY
+      value: http://localhost:8899
+    - name: AWS_CONFIG_FILE
+      value: /etc/.aws/config
+    - name: KC_IRSA_ROOT_GROUP
+      value: {{.Values.admin.kc_irsa_root_group}}
+- labelSelectors:
+  - "dominodatalab.com/workload-engine=cg2"
+  modifyAnnotation:
+    key: eks.amazonaws.com/skip-containers
+    value: nginx,tooling-jwt

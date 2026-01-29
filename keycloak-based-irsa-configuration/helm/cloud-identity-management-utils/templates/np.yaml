@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{.Values.env.name}}-admin
+  namespace: {{.Values.env.namespace}}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{.Values.env.name}}-admin
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{.Values.env.compute_namespace}}
+      ports:
+        - port: 8000
+          protocol: TCP
+  egress:
+    # Allow DNS resolution
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow traffic to domino-platform (Keycloak, Domino API)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: domino-platform
+    # Allow HTTPS outbound (AWS IAM API)
+    - ports:
+        - port: 443
+          protocol: TCP

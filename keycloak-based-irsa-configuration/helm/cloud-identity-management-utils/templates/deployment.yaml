@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Values.env.name}}-admin
+  namespace: {{.Values.env.namespace}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{.Values.env.name}}-admin
+  template:
+    metadata:
+      labels:
+        app: {{.Values.env.name}}-admin
+        nucleus-client: "true"
+        keycloak-client: "true"
+    spec:
+      serviceAccountName: {{ .Values.env.name }}-admin-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: admin
+        image: {{ .Values.admin.image }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+        env:
+        - name: DOMINO_HOST
+          value: "http://nucleus-frontend.domino-platform:80"
+        - name: COMPUTE_NAMESPACE
+          value: "{{ .Values.env.compute_namespace }}"
+        - name: OIDC_PROVIDER_URL
+          value: "{{ .Values.admin.oidc_provider_url }}"
+        - name: KC_URL
+          value: "{{ .Values.admin.kc_url }}"
+        - name: KC_REALM
+          value: "{{ .Values.admin.kc_realm }}"
+        - name: KC_CLIENT_ID
+          value: "{{ .Values.admin.kc_client_id }}"
+        - name: KC_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.env.name }}-secrets
+              key: kc-client-secret
+        - name: KC_IRSA_ROOT_GROUP
+          value: "{{ .Values.admin.kc_irsa_root_group }}"
+        ports:
+        - containerPort: 8000
+          name: admin
+        livenessProbe:
+          httpGet:
+            path: /health/healthz
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health/healthz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: "1"
+            memory: "1024Mi"
+          limits:
+            cpu: "1"
+            memory: "1024Mi"
