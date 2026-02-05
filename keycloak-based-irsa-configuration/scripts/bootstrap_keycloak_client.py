@@ -69,6 +69,7 @@ def post_form(url: str, data: dict) -> dict:
     )
     if r.status_code >= 400:
         die(f"{r.status_code} error POST {url}: {r.text[:500]}")
+    print(r.text)
     return r.json()
 
 
