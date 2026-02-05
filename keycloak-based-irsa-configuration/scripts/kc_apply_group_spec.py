@@ -92,6 +92,7 @@ def post_form(url: str, data: Dict[str, str], timeout: int = 30) -> requests.Res
         data=data,
         headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
         timeout=timeout,
+        verify=False  # Disables SSL certificate verification
     )
 
 
