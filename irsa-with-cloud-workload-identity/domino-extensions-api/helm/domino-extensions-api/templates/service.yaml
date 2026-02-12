@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: "{{ .Values.env.name }}"
+  name: {{ .Values.env.service }}
+  namespace: {{ .Values.env.namespace.field }}
+spec:
+  ports:
+  - name: https
+    port: 443
+    targetPort: 5000
+  selector:
+    app: {{ .Values.env.name }}
+  sessionAffinity: None
+  type: ClusterIP

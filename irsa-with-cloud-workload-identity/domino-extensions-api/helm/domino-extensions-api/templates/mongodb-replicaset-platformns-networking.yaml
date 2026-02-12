@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: "{{ .Values.env.name }}-replicaset-mongodb"
+  namespace: "{{ .Values.env.namespace.platform }}"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: mongodb-replicaset
+      app.kubernetes.io/name: mongodb-replicaset
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          mongodb-replicaset-client: "true"
+      namespaceSelector:
+        matchLabels:
+          domino-compute: "true"
+    ports:
+      - port: 27017
+        protocol: TCP
+  policyTypes:
+  - Ingress
