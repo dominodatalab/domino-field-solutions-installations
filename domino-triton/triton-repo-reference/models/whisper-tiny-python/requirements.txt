@@ -1,0 +1,13 @@
+# Requirements for whisper-tiny-python model
+# Used by: scripts/build_model_envs.py
+#
+# Dependencies:
+#   - transformers: HuggingFace model loading
+#   - optimum[onnxruntime]: ONNX Runtime for efficient inference
+#   - torch: Tensor operations
+#   - numpy: Array operations
+
+transformers>=4.30.0
+optimum[onnxruntime]>=1.13.0
+torch>=2.0.0
+numpy>=1.24.0

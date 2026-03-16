@@ -1,0 +1,13 @@
+# Requirements for smollm-135m-python model
+# Used by: scripts/build_model_envs.py
+#
+# Dependencies:
+#   - transformers: HuggingFace model loading and tokenization
+#   - torch: Model inference and tensor operations
+#   - numpy: Array operations
+#   - sentencepiece: Tokenizer backend
+
+transformers>=4.30.0
+torch>=2.0.0
+numpy>=1.24.0
+sentencepiece>=0.1.99

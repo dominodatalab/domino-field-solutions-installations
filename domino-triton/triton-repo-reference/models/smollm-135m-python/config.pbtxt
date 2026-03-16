@@ -1,0 +1,88 @@
+name: "smollm-135m-python"
+backend: "python"
+max_batch_size: 0
+
+input [
+  {
+    name: "prompt"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "max_tokens"
+    data_type: TYPE_INT32
+    dims: [ -1 ]
+    optional: true
+  },
+  {
+    name: "temperature"
+    data_type: TYPE_FP32
+    dims: [ -1 ]
+    optional: true
+  },
+  {
+    name: "top_p"
+    data_type: TYPE_FP32
+    dims: [ -1 ]
+    optional: true
+  },
+  {
+    name: "system_prompt"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+    optional: true
+  }
+]
+
+output [
+  {
+    name: "generated_text"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "token_count"
+    data_type: TYPE_INT32
+    dims: [ -1 ]
+  }
+]
+
+instance_group [
+  {
+    kind: KIND_CPU
+    count: 1
+  }
+]
+
+# For GPU deployment:
+# instance_group [
+#   {
+#     kind: KIND_GPU
+#     count: 1
+#   }
+# ]
+
+parameters {
+  key: "model_id"
+  value: { string_value: "HuggingFaceTB/SmolLM-135M-Instruct" }
+}
+
+parameters {
+  key: "max_length"
+  value: { string_value: "2048" }
+}
+
+parameters {
+  key: "default_max_tokens"
+  value: { string_value: "256" }
+}
+
+# Custom Python execution environment (conda-pack) - DISABLED due to Triton stub compatibility
+# To enable: Build with ./scripts/build_model_envs_triton.sh and uncomment below
+# parameters {
+#   key: "EXECUTION_ENV_PATH"
+#   value: { string_value: "$$TRITON_MODEL_DIRECTORY/smollm-135m-python_env.tar.gz" }
+# }
+
+# Note: Dynamic batching disabled (max_batch_size: 0)
+# Client must provide explicit batch dimension in inputs
