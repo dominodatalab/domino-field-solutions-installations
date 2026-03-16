@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Domino Triton Inference</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;background:#0f172a;color:#fff;overflow:hidden;height:100vh;width:100vw}
+.deck{position:relative;width:100%;height:100%}
+.slide{position:absolute;top:0;left:0;width:100%;height:calc(100% - 52px);display:none;flex-direction:column;padding:48px 64px}
+.slide.active{display:flex}
+.nav{position:fixed;bottom:0;left:0;right:0;height:52px;background:rgba(0,0,0,0.5);border-top:1px solid rgba(99,102,241,0.15);display:flex;align-items:center;justify-content:space-between;padding:0 24px;z-index:100}
+.nav button{background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px}
+.nav button:disabled{opacity:0.3;cursor:default}
+.nav button:hover:not(:disabled){background:rgba(99,102,241,0.25)}
+.dots{display:flex;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(99,102,241,0.25);cursor:pointer;border:none;transition:all 0.3s}
+.dot.active{width:24px;border-radius:4px;background:#6366f1}
+.label{font-size:12px;font-weight:700;letter-spacing:0.15em;margin-bottom:8px}
+h2{font-size:36px;font-weight:800;letter-spacing:-0.02em;margin-bottom:24px;line-height:1.15}
+h3{font-size:18px;font-weight:700;margin-bottom:8px}
+.cols{display:flex;gap:24px;flex:1;min-height:0}
+.col{flex:1;border-radius:16px;padding:24px;display:flex;flex-direction:column}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;flex:1}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;flex:1}
+.card{border-radius:16px;padding:24px;display:flex;flex-direction:column}
+.check{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#cbd5e1;margin-bottom:8px;line-height:1.5}
+.check::before{content:"✓";color:inherit;font-weight:700;flex-shrink:0;margin-top:1px}
+.tag{display:inline-block;padding:3px 12px;border-radius:99px;font-size:11px;font-weight:600;margin:2px}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:auto}
+.bar-row{margin-bottom:16px}
+.bar-label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+.bar-track{height:24px;border-radius:99px;background:rgba(255,255,255,0.05);overflow:hidden}
+.bar-fill{height:100%;border-radius:99px;transition:width 0.6s ease}
+.stat{border-radius:12px;padding:16px;text-align:center;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2)}
+.stat .num{font-size:28px;font-weight:800;color:#818cf8}
+.stat .lbl{font-size:13px;font-weight:600;color:#fff;margin-top:2px}
+.stat .sub{font-size:11px;color:#64748b}
+.callout{border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:12px;font-size:13px;margin-top:16px}
+.flow{display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap}
+.flow-box{border-radius:12px;padding:16px;text-align:center;min-width:120px}
+.flow-arrow{color:#6366f1;font-size:20px}
+.code-block{background:rgba(0,0,0,0.5);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:20px;font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.7;color:#e2e8f0;overflow:auto;flex:1}
+.code-dots{display:flex;gap:6px;margin-bottom:12px}
+.code-dots span{width:10px;height:10px;border-radius:50%}
+.feature-card{border-radius:12px;padding:14px;margin-bottom:10px}
+pre{white-space:pre-wrap;margin:0}
+.config-block{background:rgba(0,0,0,0.3);border:1px solid rgba(99,102,241,0.15);border-radius:12px;padding:16px;margin-top:16px;display:flex;gap:24px;align-items:flex-start}
+.config-block pre{font-family:'SF Mono','Fira Code',monospace;font-size:11px;line-height:1.6;color:#a5b4fc;flex:1}
+.config-block .desc{flex:1;padding-left:20px;border-left:1px solid rgba(99,102,241,0.2)}
+.perf-bar{display:flex;align-items:center;gap:24px;padding:14px 20px;border-radius:12px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);margin-top:20px}
+.perf-item{text-align:center;padding:0 16px}
+.perf-item .v{font-size:22px;font-weight:800}
+.perf-item .l{font-size:10px;color:#94a3b8}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:700px;margin:0 auto 32px}
+.summary-card{border-radius:12px;padding:14px;text-align:left;display:flex;align-items:flex-start;gap:12px;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15)}
+.summary-card .emoji{font-size:22px}
+.summary-card .t{font-size:13px;font-weight:600;color:#fff}
+.summary-card .d{font-size:11px;color:#94a3b8}
+.bottom-tags{display:flex;gap:10px;justify-content:center}
+.bottom-tags span{padding:8px 20px;border-radius:99px;font-size:13px;font-weight:600;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff}
+.divider-col{display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 8px}
+.divider-col .line{width:1px;flex:1;background:rgba(99,102,241,0.3)}
+.divider-col .badge{border-radius:8px;padding:6px 10px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);font-size:11px;font-weight:700;color:#a5b4fc}
+.phase-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.phase-label{font-size:11px;font-weight:700;letter-spacing:0.1em}
+.phase-time{font-size:11px;padding:2px 8px;border-radius:99px}
+.icon-box{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+@media(max-width:900px){.slide{padding:24px 32px}h2{font-size:28px}.cols,.grid2,.grid3{flex-direction:column}.grid2,.grid3{display:flex}}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- SLIDE 1: TITLE -->
+<div class="slide active" data-slide="0" style="align-items:center;justify-content:center;text-align:center;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%)">
+  <div style="width:80px;height:80px;border-radius:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;margin:0 auto 24px;font-size:36px">🖥</div>
+  <h1 style="font-size:48px;font-weight:800;letter-spacing:-0.03em;margin-bottom:12px">Domino Triton Inference</h1>
+  <p style="font-size:20px;color:#94a3b8;margin-bottom:24px">Secure, High-Performance ML Model Serving</p>
+  <div style="display:flex;gap:10px;justify-content:center">
+    <span class="tag" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3)">gRPC</span>
+    <span class="tag" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3)">REST</span>
+    <span class="tag" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3)">Multi-Model</span>
+    <span class="tag" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3)">Domino-Native</span>
+  </div>
+</div>
+
+<!-- SLIDE 2: WHAT IT DOES -->
+<div class="slide" data-slide="1" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+  <div class="label" style="color:#6366f1">01 — WHAT IT DOES</div>
+  <h2>Dual-Protocol Inference Gateway</h2>
+  <div class="cols">
+    <div class="col" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2)">
+      <h3>⚡ gRPC Protocol</h3>
+      <div class="check" style="--c:#6366f1"><span style="color:#6366f1">✓</span> Binary protobuf — 3.5× smaller payloads</div>
+      <div class="check"><span style="color:#6366f1">✓</span> HTTP/2 multiplexed streaming</div>
+      <div class="check"><span style="color:#6366f1">✓</span> Native bidirectional data flow</div>
+      <div class="check"><span style="color:#6366f1">✓</span> Up to 20× faster for video workloads</div>
+      <div class="check"><span style="color:#6366f1">✓</span> Ideal for production pipelines</div>
+    </div>
+    <div class="col" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2)">
+      <h3>🌐 REST Protocol</h3>
+      <div class="check"><span style="color:#22c55e">✓</span> JSON — human-readable</div>
+      <div class="check"><span style="color:#22c55e">✓</span> Standard HTTP/HTTPS everywhere</div>
+      <div class="check"><span style="color:#22c55e">✓</span> Browser & curl compatible</div>
+      <div class="check"><span style="color:#22c55e">✓</span> Great for debugging & development</div>
+      <div class="check"><span style="color:#22c55e">✓</span> Works through any firewall</div>
+    </div>
+  </div>
+  <div class="callout" style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);color:#fbbf24">
+    🔒 Both protocols secured via Domino authentication (API Key / JWT) — Triton is never exposed directly
+  </div>
+</div>
+
+<!-- SLIDE 3: ARCHITECTURE -->
+<div class="slide" data-slide="2" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+  <div class="label" style="color:#6366f1">02 — ARCHITECTURE</div>
+  <h2>Secure, Stateless Design</h2>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center">
+    <div class="flow">
+      <div class="flow-box" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3)">
+        <div style="font-size:28px;margin-bottom:6px">📦</div>
+        <div style="font-size:13px;font-weight:600">Client</div>
+        <div style="font-size:11px;color:#94a3b8">Workspace / Job</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.4)">
+        <div style="font-size:28px;margin-bottom:6px">🛡</div>
+        <div style="font-size:13px;font-weight:600">Thin Proxy</div>
+        <div style="font-size:11px;color:#94a3b8">Auth + Validate + Forward</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4)">
+        <div style="font-size:28px;margin-bottom:6px">⚙️</div>
+        <div style="font-size:13px;font-weight:600">Triton Server</div>
+        <div style="font-size:11px;color:#94a3b8">ONNX / TRT / PyTorch</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3)">
+        <div style="font-size:28px;margin-bottom:6px">🗄</div>
+        <div style="font-size:13px;font-weight:600">S3 Models</div>
+        <div style="font-size:11px;color:#94a3b8">EDV / PVC Mount</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px">
+    <div style="border-radius:10px;padding:12px;background:rgba(255,255,255,0.03);display:flex;gap:10px;align-items:flex-start">
+      <span style="color:#6366f1;font-size:16px">🔒</span>
+      <div><div style="font-size:13px;font-weight:600">Network Isolated</div><div style="font-size:11px;color:#94a3b8">Proxy → Triton only; no direct access</div></div>
+    </div>
+    <div style="border-radius:10px;padding:12px;background:rgba(255,255,255,0.03);display:flex;gap:10px;align-items:flex-start">
+      <span style="color:#22c55e;font-size:16px">⚡</span>
+      <div><div style="font-size:13px;font-weight:600">Stateless & Atomic</div><div style="font-size:11px;color:#94a3b8">Each request self-contained; scales horizontally</div></div>
+    </div>
+    <div style="border-radius:10px;padding:12px;background:rgba(255,255,255,0.03);display:flex;gap:10px;align-items:flex-start">
+      <span style="color:#f59e0b;font-size:16px">🔑</span>
+      <div><div style="font-size:13px;font-weight:600">Domino-Native Auth</div><div style="font-size:11px;color:#94a3b8">API Key & JWT propagate automatically</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 4: MODEL TYPES -->
+<div class="slide" data-slide="3" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+  <div class="label" style="color:#6366f1">03 — SUPPORTED MODEL TYPES</div>
+  <h2>Vision, Language & Audio — Today</h2>
+  <div class="grid3">
+    <div class="card" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2)">
+      <h3 style="color:#fff">🎥 Video / Image</h3>
+      <div style="font-size:12px;color:#6366f1;margin-bottom:12px">YOLOv8n Object Detection</div>
+      <div class="check"><span style="color:#6366f1">✓</span> Real-time video frame streaming</div>
+      <div class="check"><span style="color:#6366f1">✓</span> Batch-1 or N-frame batching</div>
+      <div class="check"><span style="color:#6366f1">✓</span> ~20 FPS via gRPC (CPU)</div>
+      <div class="check"><span style="color:#6366f1">✓</span> Letterbox preprocess → NCHW FP32</div>
+      <div class="check"><span style="color:#6366f1">✓</span> Bounding box overlay output</div>
+    </div>
+    <div class="card" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2)">
+      <h3 style="color:#fff">📝 Text / NLP</h3>
+      <div style="font-size:12px;color:#22c55e;margin-bottom:12px">BERT Classification</div>
+      <div class="check"><span style="color:#22c55e">✓</span> Tokenized input_ids + attention_mask</div>
+      <div class="check"><span style="color:#22c55e">✓</span> Multi-input tensor support</div>
+      <div class="check"><span style="color:#22c55e">✓</span> Sentiment / classification logits</div>
+      <div class="check"><span style="color:#22c55e">✓</span> ~45ms inference per text</div>
+      <div class="check"><span style="color:#22c55e">✓</span> Batch support for throughput</div>
+    </div>
+    <div class="card" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2)">
+      <h3 style="color:#fff">🎙 Audio</h3>
+      <div style="font-size:12px;color:#f59e0b;margin-bottom:12px">Whisper Transcription</div>
+      <div class="check"><span style="color:#f59e0b">✓</span> WAV, MP3, FLAC, OGG, M4A support</div>
+      <div class="check"><span style="color:#f59e0b">✓</span> Mel spectrogram preprocessing</div>
+      <div class="check"><span style="color:#f59e0b">✓</span> Transcribe & translate tasks</div>
+      <div class="check"><span style="color:#f59e0b">✓</span> Multi-language support</div>
+      <div class="check"><span style="color:#f59e0b">✓</span> Python backend on server</div>
+    </div>
+  </div>
+  <p style="text-align:center;font-size:13px;color:#64748b;margin-top:16px">All models served through consistent gRPC & REST interfaces — same client library, same auth, same deploy pattern</p>
+</div>
+
+<!-- SLIDE 5: PERFORMANCE -->
+<div class="slide" data-slide="4" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+  <div class="label" style="color:#6366f1">04 — PERFORMANCE</div>
+  <h2>gRPC Delivers Up to 20× Throughput</h2>
+  <div class="cols">
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:16px">Effective FPS (YOLOv8n Video)</div>
+      <div class="bar-row">
+        <div class="bar-label"><span style="color:#e2e8f0">REST JSON</span><span style="font-weight:700;color:#ef4444">1.2 FPS</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:5%;background:#ef4444"></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span style="color:#e2e8f0">gRPC Binary</span><span style="font-weight:700;color:#22c55e">23.3 FPS</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:93%;background:#22c55e"></div></div>
+      </div>
+    </div>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:16px">Payload per Frame (MB)</div>
+      <div class="bar-row">
+        <div class="bar-label"><span style="color:#e2e8f0">REST JSON</span><span style="font-weight:700;color:#ef4444">17.5 MB</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:88%;background:#ef4444"></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span style="color:#e2e8f0">gRPC Binary</span><span style="font-weight:700;color:#22c55e">4.9 MB</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:25%;background:#22c55e"></div></div>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:20px">
+    <div class="stat"><div class="num">20×</div><div class="lbl">Faster throughput</div><div class="sub">gRPC vs REST JSON</div></div>
+    <div class="stat"><div class="num">3.5×</div><div class="lbl">Smaller payloads</div><div class="sub">Binary vs JSON text</div></div>
+    <div class="stat"><div class="num">80%</div><div class="lbl">Less client code</div><div class="sub">With helper library</div></div>
+  </div>
+</div>
+
+<!-- SLIDE 6: CONSISTENT INVOCATION -->
+<div class="slide" data-slide="5" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+  <div class="label" style="color:#6366f1">05 — UNIFIED CLIENT EXPERIENCE</div>
+  <h2>One Library, Any Model, Either Protocol</h2>
+  <div class="cols">
+    <div class="code-block" style="flex:1.2">
+      <div class="code-dots"><span style="background:#ef4444"></span><span style="background:#f59e0b"></span><span style="background:#22c55e"></span></div>
+<pre>from triton_client import TritonGrpcClient
+
+client = TritonGrpcClient(
+    url="localhost:50051",
+    api_key=os.environ["DOMINO_USER_API_KEY"]
+)
+
+<span style="color:#6366f1"># YOLOv8n — Video</span>
+result = client.infer(
+    model="yolov8n",
+    inputs={"images": frame_tensor},
+    outputs=["output0"]
+)
+
+<span style="color:#22c55e"># BERT — Text</span>
+result = client.infer(
+    model="bert-base-uncased",
+    inputs={
+        "input_ids": ids,
+        "attention_mask": mask
+    },
+    outputs=["logits"]
+)
+
+<span style="color:#f59e0b"># Same pattern for any model!</span></pre>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:10px">
+      <div class="feature-card" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2)">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Consistent Interface</div>
+        <div style="font-size:12px;color:#94a3b8">Same <code style="background:rgba(99,102,241,0.2);color:#a5b4fc;padding:1px 6px;border-radius:4px">client.infer()</code> call regardless of model type. Pass numpy arrays in, get numpy arrays out.</div>
+      </div>
+      <div class="feature-card" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2)">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Protocol Transparent</div>
+        <div style="font-size:12px;color:#94a3b8">Swap <code style="background:rgba(34,197,94,0.2);color:#86efac;padding:1px 6px;border-radius:4px">TritonGrpcClient</code> for <code style="background:rgba(34,197,94,0.2);color:#86efac;padding:1px 6px;border-radius:4px">TritonRestClient</code> — zero code changes.</div>
+      </div>
+      <div class="feature-card" style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2)">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Auto-Handled Complexity</div>
+        <div style="font-size:12px;color:#94a3b8">Dtype mapping, proto construction, response parsing — all automatic. 80% code reduction.</div>
+      </div>
+      <div class="feature-card" style="background:rgba(236,72,153,0.08);border:1px solid rgba(236,72,153,0.2)">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Built-in Auth</div>
+        <div style="font-size:12px;color:#94a3b8">Domino API key or JWT at construction. Every request authenticated automatically.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 7: DEV vs DEPLOY -->
+<div class="slide" data-slide="6" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+  <div class="label" style="color:#6366f1">06 — SEPARATION OF CONCERNS</div>
+  <h2>Model Development ≠ Model Deployment</h2>
+  <div class="cols">
+    <div class="col" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);flex:1">
+      <h3>👩‍🔬 Data Scientist</h3>
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:12px">Focuses on model quality in Domino workspace</p>
+      <div class="check"><span style="color:#60a5fa">✓</span> Train & evaluate models</div>
+      <div class="check"><span style="color:#60a5fa">✓</span> Export to ONNX format</div>
+      <div class="check"><span style="color:#60a5fa">✓</span> Register in Model Registry</div>
+      <div class="check"><span style="color:#60a5fa">✓</span> Iterate on accuracy & features</div>
+    </div>
+    <div class="divider-col">
+      <div class="line"></div>
+      <div class="badge">config.pbtxt</div>
+      <div class="line"></div>
+    </div>
+    <div class="col" style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);flex:1">
+      <h3>🛠 ML Platform / Ops</h3>
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:12px">Manages serving infrastructure independently</p>
+      <div class="check"><span style="color:#a78bfa">✓</span> Define serving config (config.pbtxt)</div>
+      <div class="check"><span style="color:#a78bfa">✓</span> Set batch size, instance groups</div>
+      <div class="check"><span style="color:#a78bfa">✓</span> Choose CPU vs GPU backends</div>
+      <div class="check"><span style="color:#a78bfa">✓</span> Scale replicas & resources</div>
+      <div class="check"><span style="color:#a78bfa">✓</span> Monitor performance metrics</div>
+    </div>
+  </div>
+  <div class="config-block">
+    <pre>name: "yolov8n"
+platform: "onnxruntime_onnx"
+max_batch_size: 16
+input: [{ name: "images", data_type: TYPE_FP32, dims: [3, 640, 640] }]
+output: [{ name: "output0", data_type: TYPE_FP32, dims: [300, 6] }]
+instance_group: [{ kind: KIND_GPU, count: 1 }]</pre>
+    <div class="desc">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">Key Benefit</div>
+      <div style="font-size:12px;color:#94a3b8">Model files stored in S3/EDV. Triton auto-discovers via polling. No redeploy needed — just update the model artifact and config.</div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 8: LLM COMING -->
+<div class="slide" data-slide="7" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+  <div class="label" style="color:#f59e0b">07 — WHAT'S COMING</div>
+  <h2>LLM Inference Support</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex:1">
+    <div class="card" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2)">
+      <div class="phase-header"><span class="phase-label" style="color:#22c55e">PHASE 1</span><span class="phase-time" style="background:rgba(34,197,94,0.2);color:#22c55e">1–2 days</span></div>
+      <h3 style="margin-top:8px">Prototype</h3>
+      <div class="check"><span style="color:#22c55e">✓</span> Python backend + HuggingFace</div>
+      <div class="check"><span style="color:#22c55e">✓</span> Single GPU (7B models)</div>
+      <div class="check"><span style="color:#22c55e">✓</span> End-to-end validation</div>
+      <div class="check"><span style="color:#22c55e">✓</span> 50–100 tokens/sec</div>
+    </div>
+    <div class="card" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2)">
+      <div class="phase-header"><span class="phase-label" style="color:#6366f1">PHASE 2</span><span class="phase-time" style="background:rgba(99,102,241,0.2);color:#6366f1">3–5 days</span></div>
+      <h3 style="margin-top:8px">Optimize</h3>
+      <div class="check"><span style="color:#6366f1">✓</span> TensorRT-LLM engine build</div>
+      <div class="check"><span style="color:#6366f1">✓</span> KV-cache + continuous batching</div>
+      <div class="check"><span style="color:#6366f1">✓</span> Quantization (INT8/FP8/INT4)</div>
+      <div class="check"><span style="color:#6366f1">✓</span> 2,000–3,000 tokens/sec</div>
+    </div>
+  </div>
+  <div class="perf-bar">
+    <div class="perf-item"><div class="v" style="color:#ef4444">50–100</div><div class="l">Python (baseline)</div></div>
+    <div style="color:#64748b;font-size:20px">→</div>
+    <div class="perf-item"><div class="v" style="color:#f59e0b">1,500–2,000</div><div class="l">vLLM</div></div>
+    <div style="color:#64748b;font-size:20px">→</div>
+    <div class="perf-item"><div class="v" style="color:#22c55e">2,000–3,000</div><div class="l">TensorRT-LLM</div></div>
+    <div style="margin-left:auto;font-size:11px;color:#64748b">tokens/sec on A100 (Llama-2-7B)</div>
+  </div>
+</div>
+
+<!-- SLIDE 9: ROADMAP -->
+<div class="slide" data-slide="8" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+  <div class="label" style="color:#f59e0b">08 — ROADMAP</div>
+  <h2>App-Based Management & Observability</h2>
+  <div class="grid2">
+    <div class="card" style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.2)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div class="icon-box" style="background:rgba(99,102,241,0.2)">⚙️</div>
+        <h3 style="margin:0">App-Based Resource Management</h3>
+      </div>
+      <p style="font-size:12px;color:#94a3b8;flex:1;margin-bottom:10px">Scale Triton deployments up and down directly from an application interface. No kubectl required — self-service for ML teams.</p>
+      <div class="tags">
+        <span class="tag" style="background:rgba(99,102,241,0.15);color:#6366f1;border:1px solid rgba(99,102,241,0.3)">Scale Up/Down</span>
+        <span class="tag" style="background:rgba(99,102,241,0.15);color:#6366f1;border:1px solid rgba(99,102,241,0.3)">Replica Control</span>
+        <span class="tag" style="background:rgba(99,102,241,0.15);color:#6366f1;border:1px solid rgba(99,102,241,0.3)">GPU Allocation</span>
+      </div>
+    </div>
+    <div class="card" style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div class="icon-box" style="background:rgba(34,197,94,0.2)">📊</div>
+        <h3 style="margin:0">Grafana Monitoring Dashboards</h3>
+      </div>
+      <p style="font-size:12px;color:#94a3b8;flex:1;margin-bottom:10px">Pre-built dashboards for inference latency, throughput, GPU utilization, queue depth, and error rates. Real-time visibility.</p>
+      <div class="tags">
+        <span class="tag" style="background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3)">Prometheus Metrics</span>
+        <span class="tag" style="background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3)">GPU Health</span>
+        <span class="tag" style="background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3)">Tail Latency</span>
+      </div>
+    </div>
+    <div class="card" style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div class="icon-box" style="background:rgba(245,158,11,0.2)">📈</div>
+        <h3 style="margin:0">Intelligent Scaling Indicators</h3>
+      </div>
+      <p style="font-size:12px;color:#94a3b8;flex:1;margin-bottom:10px">App proactively surfaces when scaling is needed — based on queue buildup, latency degradation, or GPU saturation.</p>
+      <div class="tags">
+        <span class="tag" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3)">Queue Alerts</span>
+        <span class="tag" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3)">Latency SLOs</span>
+        <span class="tag" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3)">Capacity Planning</span>
+      </div>
+    </div>
+    <div class="card" style="background:rgba(236,72,153,0.06);border:1px solid rgba(236,72,153,0.2)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div class="icon-box" style="background:rgba(236,72,153,0.2)">🖥</div>
+        <h3 style="margin:0">Model Movement & Lifecycle</h3>
+      </div>
+      <p style="font-size:12px;color:#94a3b8;flex:1;margin-bottom:10px">Move models between environments, promote versions, manage full lifecycle. Registry → Staging → Production.</p>
+      <div class="tags">
+        <span class="tag" style="background:rgba(236,72,153,0.15);color:#ec4899;border:1px solid rgba(236,72,153,0.3)">Version Promotion</span>
+        <span class="tag" style="background:rgba(236,72,153,0.15);color:#ec4899;border:1px solid rgba(236,72,153,0.3)">Env Migration</span>
+        <span class="tag" style="background:rgba(236,72,153,0.15);color:#ec4899;border:1px solid rgba(236,72,153,0.3)">Hot Reload</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 10: SUMMARY -->
+<div class="slide" data-slide="9" style="align-items:center;justify-content:center;text-align:center;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%)">
+  <h2 style="margin-bottom:32px">Why Domino Triton Inference?</h2>
+  <div class="summary-grid">
+    <div class="summary-card"><span class="emoji">⚡</span><div><div class="t">High Performance</div><div class="d">gRPC binary transport — up to 20× faster than REST</div></div></div>
+    <div class="summary-card"><span class="emoji">🔒</span><div><div class="t">Enterprise Security</div><div class="d">Domino-native auth, network isolation, no Triton exposure</div></div></div>
+    <div class="summary-card"><span class="emoji">🎯</span><div><div class="t">Multi-Modal Today</div><div class="d">Video, text, and audio models served consistently</div></div></div>
+    <div class="summary-card"><span class="emoji">🤖</span><div><div class="t">LLM-Ready Tomorrow</div><div class="d">TensorRT-LLM path for production-grade LLM serving</div></div></div>
+    <div class="summary-card"><span class="emoji">🔧</span><div><div class="t">Dev ≠ Deploy</div><div class="d">config.pbtxt separates model science from infrastructure</div></div></div>
+    <div class="summary-card"><span class="emoji">📊</span><div><div class="t">Observable & Managed</div><div class="d">Grafana dashboards + app-based scaling coming soon</div></div></div>
+  </div>
+  <div class="bottom-tags">
+    <span>Demo Available</span>
+    <span>Production-Ready</span>
+    <span>Extensible</span>
+  </div>
+</div>
+
+</div>
+
+<!-- NAVIGATION -->
+<div class="nav">
+  <button id="prevBtn" onclick="go(-1)">← Previous</button>
+  <div class="dots" id="dots"></div>
+  <button id="nextBtn" onclick="go(1)">Next →</button>
+</div>
+
+<script>
+var current = 0;
+var slides = document.querySelectorAll('.slide');
+var total = slides.length;
+var dotsEl = document.getElementById('dots');
+
+// Create dots
+for (var i = 0; i < total; i++) {
+  var d = document.createElement('button');
+  d.className = 'dot' + (i === 0 ? ' active' : '');
+  d.setAttribute('data-i', i);
+  d.onclick = function() { goTo(parseInt(this.getAttribute('data-i'))); };
+  dotsEl.appendChild(d);
+}
+
+function goTo(n) {
+  slides[current].classList.remove('active');
+  dotsEl.children[current].classList.remove('active');
+  current = n;
+  slides[current].classList.add('active');
+  dotsEl.children[current].classList.add('active');
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === total - 1;
+}
+
+function go(dir) {
+  var next = current + dir;
+  if (next >= 0 && next < total) goTo(next);
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+  if (e.key === 'Home') { e.preventDefault(); goTo(0); }
+  if (e.key === 'End') { e.preventDefault(); goTo(total - 1); }
+});
+</script>
+</body>
+</html>

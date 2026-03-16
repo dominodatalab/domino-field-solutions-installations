@@ -1,0 +1,1791 @@
+{% extends "base.html" %}
+
+{% block title %}{{ model_name }} - Triton Admin{% endblock %}
+
+{% block content %}
+<div class="model-detail" x-data="modelDetailApp()" x-init="init()">
+    <div class="page-header">
+        <a :href="window.ROOT_PATH + '/?namespace={{ current_namespace }}'" class="back-link">&larr; Back to Dashboard</a>
+        <h2 x-text="model.name || '{{ model_name }}'">{{ model_name }}</h2>
+    </div>
+
+    <!-- Model Status -->
+    <section class="status-section">
+        <h3>Status</h3>
+        <div class="status-grid">
+            <div class="status-item">
+                <span class="status-label">Loaded:</span>
+                <span class="status-value" :class="{ 'yes': model.loaded, 'no': !model.loaded }" x-text="model.loaded ? 'Yes' : 'No'"></span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Pinned:</span>
+                <span class="status-value" x-text="model.state?.pinned ? 'Yes' : 'No'"></span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Cordoned:</span>
+                <span class="status-value" x-text="model.state?.cordoned ? 'Yes' : 'No'"></span>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <!-- Load/Unload button with loading state -->
+            <button
+                class="btn"
+                :class="{
+                    'btn-loading': modelLoading,
+                    'btn-success': !modelLoading && !model.loaded,
+                    'btn-danger': !modelLoading && model.loaded
+                }"
+                @click="model.loaded ? unloadModel() : loadModelAction()"
+                :disabled="modelLoading"
+                x-text="modelLoading ? modelLoadingAction : (model.loaded ? 'Unload Model' : 'Load Model')"
+            ></button>
+            <template x-if="!model.state?.pinned">
+                <button class="btn btn-secondary" @click="pinModel()">Pin</button>
+            </template>
+            <template x-if="model.state?.pinned">
+                <button class="btn btn-secondary" @click="unpinModel()">Unpin</button>
+            </template>
+            <template x-if="!model.state?.cordoned">
+                <button class="btn btn-secondary" @click="cordonModel()">Cordon</button>
+            </template>
+            <template x-if="model.state?.cordoned">
+                <button class="btn btn-secondary" @click="uncordonModel()">Uncordon</button>
+            </template>
+        </div>
+    </section>
+
+    <!-- Access Info -->
+    <section class="access-section">
+        <h3>Access Info</h3>
+        <div class="access-info">
+            <p>
+                <strong>Last accessed:</strong>
+                <span x-text="model.state?.last_access_time ? formatTime(model.state.last_access_time) : 'Never'"></span>
+                <template x-if="model.state?.last_accessed_by">
+                    <span> by <span x-text="model.state.last_accessed_by"></span></span>
+                </template>
+            </p>
+            <p><strong>Total accesses:</strong> <span x-text="model.state?.access_count || 0"></span></p>
+            <p><strong>Idle time:</strong> <span x-text="model.state?.idle_seconds ? formatDuration(model.state.idle_seconds) : 'N/A'"></span></p>
+
+            <!-- Eviction/Timeout Info -->
+            <div class="eviction-info" x-show="model.loaded">
+                <template x-if="model.state?.pinned">
+                    <p class="pinned-notice"><strong>Eviction status:</strong> Protected (pinned)</p>
+                </template>
+                <template x-if="!model.state?.pinned && model.state?.timeout_secs">
+                    <div class="timeout-details">
+                        <p>
+                            <strong>Idle timeout:</strong>
+                            <span x-text="formatDuration(model.state.timeout_secs)"></span>
+                            <template x-if="model.state?.is_custom_timeout">
+                                <span class="custom-timeout-badge" title="Custom timeout configured in config.pbtxt">custom</span>
+                            </template>
+                        </p>
+                        <template x-if="model.state?.time_until_eviction_secs !== null && model.state?.time_until_eviction_secs !== undefined">
+                            <p class="eviction-countdown" :class="{ 'warning': model.state.time_until_eviction_secs < 300, 'critical': model.state.time_until_eviction_secs <= 0 }">
+                                <strong x-show="model.state.time_until_eviction_secs > 0">Time until eviction:</strong>
+                                <strong x-show="model.state.time_until_eviction_secs <= 0">Status:</strong>
+                                <span x-show="model.state.time_until_eviction_secs > 0" x-text="formatDuration(model.state.time_until_eviction_secs)"></span>
+                                <span x-show="model.state.time_until_eviction_secs <= 0" class="eviction-eligible">Eligible for eviction</span>
+                            </p>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </section>
+
+    <!-- Device Configuration -->
+    <section class="config-section">
+        <div class="section-header">
+            <h3>Device Configuration</h3>
+            <button class="btn btn-secondary btn-sm" @click="loadConfig()" :disabled="loadingConfig">
+                <span x-show="!loadingConfig">Refresh</span>
+                <span x-show="loadingConfig">Loading...</span>
+            </button>
+        </div>
+
+        <div class="config-not-available" x-show="configError && !loadingConfig">
+            <p class="error-text" x-text="configError"></p>
+            <p class="hint">Device configuration requires the HTTP proxy to support the config endpoint.</p>
+        </div>
+
+        <div class="config-form" x-show="!configError && !loadingConfig">
+            <!-- Device Kind -->
+            <div class="config-group">
+                <label class="config-label">Device Kind:</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" value="KIND_CPU" x-model="deviceConfig.kind" name="device_kind">
+                        <span class="radio-text">CPU</span>
+                        <span class="radio-desc">Run on CPU (default)</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" value="KIND_GPU" x-model="deviceConfig.kind" name="device_kind">
+                        <span class="radio-text">GPU</span>
+                        <span class="radio-desc">Run on GPU for acceleration</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Instance Count -->
+            <div class="config-group">
+                <label class="config-label" for="instance-count">Instance Count:</label>
+                <div class="input-with-hint">
+                    <input type="number" id="instance-count" x-model.number="deviceConfig.count" min="1" max="8" class="config-input">
+                    <span class="input-hint">Number of model instances (1-8)</span>
+                </div>
+            </div>
+
+            <!-- Device Index (only shown for GPU) -->
+            <div class="config-group" x-show="deviceConfig.kind === 'KIND_GPU'">
+                <label class="config-label" for="device-index">GPU Device Index:</label>
+                <div class="input-with-hint">
+                    <input type="number" id="device-index" x-model.number="deviceConfig.deviceIndex" min="0" :max="Math.max(0, availableGpus.length - 1)" class="config-input">
+                    <span class="input-hint">
+                        <template x-if="availableGpus.length > 0">
+                            <span>Available: 0-<span x-text="availableGpus.length - 1"></span> (<span x-text="availableGpus.length"></span> GPU<span x-text="availableGpus.length > 1 ? 's' : ''"></span> detected)</span>
+                        </template>
+                        <template x-if="availableGpus.length === 0">
+                            <span>Default: 0 (no GPUs detected via metrics)</span>
+                        </template>
+                    </span>
+                </div>
+                <!-- Show GPU info if available -->
+                <div class="gpu-info" x-show="availableGpus.length > 0 && availableGpus[deviceConfig.deviceIndex]">
+                    <span class="gpu-name" x-text="availableGpus[deviceConfig.deviceIndex]?.name || 'Unknown GPU'"></span>
+                    <template x-if="availableGpus[deviceConfig.deviceIndex]?.memory_total_bytes">
+                        <span class="gpu-memory" x-text="formatBytes(availableGpus[deviceConfig.deviceIndex].memory_total_bytes)"></span>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Model Types -->
+            <div class="config-group">
+                <label class="config-label">Model Types (Input Types):</label>
+                <div class="model-types-checkboxes">
+                    <label class="checkbox-option">
+                        <input type="checkbox" value="text" x-model="deviceConfig.modelTypes">
+                        <span class="checkbox-text">Text</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" value="image" x-model="deviceConfig.modelTypes">
+                        <span class="checkbox-text">Image</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" value="video" x-model="deviceConfig.modelTypes">
+                        <span class="checkbox-text">Video</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" value="audio" x-model="deviceConfig.modelTypes">
+                        <span class="checkbox-text">Audio</span>
+                    </label>
+                </div>
+                <span class="input-hint">Select the input types this model accepts (for dashboard testing)</span>
+            </div>
+
+            <!-- Idle Timeout -->
+            <div class="config-group">
+                <label class="config-label">Idle Timeout:</label>
+                <div class="timeout-input-group">
+                    <label class="radio-option timeout-option">
+                        <input type="radio" value="default" x-model="deviceConfig.timeoutMode" name="timeout_mode">
+                        <span class="radio-text">Use default</span>
+                        <span class="radio-desc">30 minutes (system default)</span>
+                    </label>
+                    <label class="radio-option timeout-option">
+                        <input type="radio" value="custom" x-model="deviceConfig.timeoutMode" name="timeout_mode">
+                        <span class="radio-text">Custom timeout</span>
+                        <span class="radio-desc">Set a specific timeout for this model</span>
+                    </label>
+                </div>
+                <div class="custom-timeout-input" x-show="deviceConfig.timeoutMode === 'custom'">
+                    <input type="number" x-model.number="deviceConfig.customTimeoutMins" min="1" max="1440" class="config-input">
+                    <span class="input-hint">minutes (1-1440, i.e., up to 24 hours)</span>
+                </div>
+            </div>
+
+            <!-- Reload Option -->
+            <div class="config-group">
+                <label class="checkbox-option reload-option">
+                    <input type="checkbox" x-model="deviceConfig.reload">
+                    <span class="checkbox-text">Reload model after config update</span>
+                    <span class="checkbox-hint">(recommended for changes to take effect)</span>
+                </label>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="config-actions">
+                <button class="btn btn-primary" @click="updateConfig()" :disabled="updatingConfig">
+                    <span x-show="!updatingConfig">Update Configuration</span>
+                    <span x-show="updatingConfig">Updating...</span>
+                </button>
+                <button class="btn btn-secondary" @click="resetConfig()">Reset</button>
+            </div>
+
+            <!-- Update Result -->
+            <div class="config-result" x-show="configResult">
+                <p :class="{ 'success': configResult?.success, 'error': !configResult?.success }" x-text="configResult?.message"></p>
+            </div>
+        </div>
+
+        <!-- Current Config Display -->
+        <div class="current-config" x-show="rawConfig && !loadingConfig">
+            <div class="config-header">
+                <h4>Current config.pbtxt</h4>
+                <div class="config-actions">
+                    <button class="btn btn-secondary btn-sm" @click="copyConfig()" title="Copy to clipboard">
+                        <span x-text="configCopied ? 'Copied!' : 'Copy'"></span>
+                    </button>
+                    <button class="btn btn-secondary btn-sm" @click="showRawConfig = !showRawConfig">
+                        <span x-text="showRawConfig ? 'Collapse' : 'Expand'"></span>
+                    </button>
+                </div>
+            </div>
+            <pre class="config-display" x-show="showRawConfig" x-text="rawConfig"></pre>
+        </div>
+    </section>
+
+    <!-- Test Model -->
+    <section class="test-section">
+        <h3>Test Model</h3>
+        <div class="test-form">
+            <div class="protocol-selector">
+                <label>Protocol:</label>
+                <label class="radio-label">
+                    <input type="radio" value="rest" x-model="protocol" name="protocol">
+                    <span>REST (JSON)</span>
+                </label>
+                <label class="radio-label" :class="{ 'disabled': inputType === 'text' }">
+                    <input type="radio" value="rest-binary" x-model="protocol" name="protocol" :disabled="inputType === 'text'">
+                    <span>REST (Binary)</span>
+                    <span x-show="inputType === 'text'" class="protocol-hint">(media only)</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" value="grpc" x-model="protocol" name="protocol">
+                    <span>gRPC</span>
+                </label>
+            </div>
+
+            <div class="input-type-selector">
+                <label>Input Type:</label>
+                <template x-for="type in allInputTypes" :key="type">
+                    <label class="radio-label" :class="{ 'suggested': modelTypes.includes(type) }">
+                        <input type="radio" :value="type" x-model="inputType" name="input_type">
+                        <span x-text="type.charAt(0).toUpperCase() + type.slice(1)"></span>
+                        <span x-show="modelTypes.includes(type)" class="suggested-badge">suggested</span>
+                    </label>
+                </template>
+            </div>
+
+            <!-- Text Input -->
+            <div class="text-input-section" x-show="inputType === 'text'">
+                <label for="text-input">Text Input:</label>
+                <textarea id="text-input" x-model="textInput" rows="4" placeholder="Enter text for inference..."></textarea>
+                <div class="llm-params" x-show="isLLM">
+                    <label>
+                        Max Tokens:
+                        <input type="number" x-model.number="maxTokens" min="1" max="1024">
+                    </label>
+                    <label>
+                        Temperature:
+                        <input type="number" x-model.number="temperature" min="0" max="2" step="0.1">
+                    </label>
+                </div>
+            </div>
+
+            <!-- File Input -->
+            <div class="file-input-section" x-show="inputType === 'video' || inputType === 'audio' || inputType === 'image'">
+                <label for="sample-file">Sample File:</label>
+                <select id="sample-file" x-model="selectedFile">
+                    <option value="">Select a sample file...</option>
+                    <template x-for="sample in filteredSamples" :key="sample.filename">
+                        <option :value="sample.filename" x-text="sample.filename + ' (' + formatBytes(sample.size_bytes) + ')'"></option>
+                    </template>
+                </select>
+                <div class="video-params" x-show="inputType === 'video'">
+                    <label>
+                        Max Frames:
+                        <input type="number" x-model.number="maxFrames" min="1" max="100">
+                    </label>
+                </div>
+            </div>
+
+            <button class="btn btn-primary run-inference" @click="runInference()" :disabled="inferring || !canRunInference">
+                <span x-show="!inferring">Run Inference</span>
+                <span x-show="inferring">Running...</span>
+            </button>
+        </div>
+
+        <!-- Results -->
+        <div class="results-section" x-show="result !== null">
+            <h4>Result</h4>
+
+            <!-- Result Header with Protocol and Stats -->
+            <div class="result-header" x-show="result">
+                <span class="protocol-badge" :class="result.protocol.replace('-', '_')">
+                    <span x-text="result.protocol === 'grpc' ? 'gRPC' : (result.protocol === 'rest-binary' ? 'REST (Binary)' : 'REST (JSON)')"></span>
+                </span>
+                <div class="result-stats-inline">
+                    <span class="stat-item" x-show="result.total_inference_time_ms">
+                        <span class="stat-label">Time:</span>
+                        <strong x-text="result.total_inference_time_ms?.toFixed(2)"></strong> ms
+                        <span class="stat-secondary">(<span x-text="(result.total_inference_time_ms / 1000)?.toFixed(2)"></span> s)</span>
+                    </span>
+                    <span class="stat-item" x-show="result.fps">
+                        <span class="stat-label">FPS:</span>
+                        <strong x-text="result.fps?.toFixed(2)"></strong>
+                    </span>
+                    <span class="stat-item" x-show="result.payload_size_mb">
+                        <span class="stat-label">Payload:</span>
+                        <strong x-text="result.payload_size_mb?.toFixed(2)"></strong> MB
+                    </span>
+                </div>
+            </div>
+
+            <!-- Error Result -->
+            <template x-if="result && !result.success">
+                <div class="result-box error">
+                    <p class="result-status">Error</p>
+                    <pre class="result-error" x-text="result.error"></pre>
+                </div>
+            </template>
+
+            <!-- Success Result -->
+            <template x-if="result?.success">
+                <div class="result-box success">
+                    <p class="result-status">Success</p>
+
+                    <!-- Classification Result (BERT) -->
+                    <template x-if="result.result_type === 'classification'">
+                        <div class="classification-result">
+                            <h5>Classification Results</h5>
+                            <template x-if="result.result?.results">
+                                <div class="results-list">
+                                    <template x-for="item in result.result.results" :key="item.index">
+                                        <div class="result-item">
+                                            <div class="result-text">
+                                                <strong>Text:</strong> <span x-text="item.text"></span>
+                                            </div>
+                                            <div class="result-classification" x-show="item.classification">
+                                                <span class="classification-label" :class="item.classification?.toLowerCase()">
+                                                    <span x-text="item.classification"></span>
+                                                </span>
+                                                <span class="confidence" x-show="item.confidence">
+                                                    (<span x-text="(item.confidence * 100).toFixed(1)"></span>% confidence)
+                                                </span>
+                                            </div>
+                                            <div class="result-details">
+                                                <span class="inference-time">Inference: <span x-text="item.inference_ms"></span>ms</span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                            <template x-if="result.result?.stats">
+                                <div class="result-stats">
+                                    <p><strong>Total texts:</strong> <span x-text="result.result.stats.total_texts"></span></p>
+                                    <p><strong>Throughput:</strong> <span x-text="result.result.stats.throughput"></span> texts/sec</p>
+                                    <p><strong>Avg time:</strong> <span x-text="result.result.stats.avg_text_ms"></span> ms/text</p>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Transcription Result (Whisper) -->
+                    <template x-if="result.result_type === 'transcription'">
+                        <div class="transcription-result">
+                            <h5>Audio Transcription</h5>
+
+                            <!-- Audio Player -->
+                            <template x-if="result.source_file">
+                                <div class="audio-player-section">
+                                    <h6>Source Audio</h6>
+                                    <audio controls class="audio-player">
+                                        <source :src="window.ROOT_PATH + '/api/testing/media/samples/' + result.source_file" type="audio/wav">
+                                        Your browser does not support the audio element.
+                                    </audio>
+                                </div>
+                            </template>
+
+                            <!-- Transcription Text -->
+                            <div class="transcription-text">
+                                <h6>Transcription</h6>
+                                <template x-if="result.result?.transcriptions && result.result.transcriptions.length > 0">
+                                    <template x-for="(trans, idx) in result.result.transcriptions" :key="idx">
+                                        <div class="transcription-item" :class="{ 'error': trans.error }">
+                                            <template x-if="trans.error">
+                                                <p class="transcription-error" x-text="trans.error"></p>
+                                            </template>
+                                            <template x-if="!trans.error">
+                                                <p class="transcription-content" x-text="trans.transcription || trans.text || trans"></p>
+                                            </template>
+                                            <template x-if="trans.inference_ms">
+                                                <span class="inference-time">Inference: <span x-text="trans.inference_ms"></span>ms</span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </template>
+                                <template x-if="!result.result?.transcriptions || result.result.transcriptions.length === 0">
+                                    <p class="no-transcription">No transcription available. The model may have failed to load.</p>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Generation Result (LLM) -->
+                    <template x-if="result.result_type === 'generation'">
+                        <div class="generation-result">
+                            <h5>Generated Text</h5>
+                            <template x-if="result.result?.generations">
+                                <template x-for="(gen, idx) in result.result.generations" :key="idx">
+                                    <div class="generation-item">
+                                        <template x-if="gen.prompt">
+                                            <div class="generation-prompt">
+                                                <strong>Prompt:</strong> <span x-text="gen.prompt"></span>
+                                            </div>
+                                        </template>
+                                        <div class="generation-output">
+                                            <strong>Generated:</strong>
+                                            <pre class="generated-text" x-text="gen.generated_text || gen.text || gen"></pre>
+                                        </div>
+                                        <template x-if="gen.inference_ms">
+                                            <span class="inference-time">Inference: <span x-text="gen.inference_ms"></span>ms</span>
+                                        </template>
+                                    </div>
+                                </template>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Video Result (YOLOv8) -->
+                    <template x-if="result.result_type === 'video'">
+                        <div class="video-result">
+                            <h5>Object Detection Results</h5>
+
+                            <div class="video-comparison">
+                                <!-- Source Video -->
+                                <template x-if="result.source_file">
+                                    <div class="video-panel">
+                                        <h6>Source Video</h6>
+                                        <p class="video-note">Note: AVI format may not play in browser. <a :href="window.ROOT_PATH + '/api/testing/media/samples/' + result.source_file" download>Download source video</a></p>
+                                        <video controls class="video-player" :key="'source-' + result.source_file">
+                                            <source :src="window.ROOT_PATH + '/api/testing/media/samples/' + result.source_file" type="video/mp4">
+                                            <source :src="window.ROOT_PATH + '/api/testing/media/samples/' + result.source_file" type="video/x-msvideo">
+                                            Your browser does not support this video format.
+                                        </video>
+                                    </div>
+                                </template>
+
+                                <!-- Annotated Video -->
+                                <template x-if="result.result_file">
+                                    <div class="video-panel">
+                                        <h6>Annotated Video (with detections)</h6>
+                                        <p class="video-note">If video doesn't play, the server may lack ffmpeg for H.264 encoding. <a :href="window.ROOT_PATH + '/api/testing/media/results/' + result.result_file" download>Download annotated video</a></p>
+                                        <video controls class="video-player" :key="'result-' + result.result_file" autoplay muted>
+                                            <source :src="window.ROOT_PATH + '/api/testing/media/results/' + result.result_file" type="video/mp4">
+                                            Your browser does not support the video element.
+                                        </video>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Detection Stats -->
+                            <template x-if="result.result?.stats">
+                                <div class="detection-stats">
+                                    <p><strong>Frames processed:</strong> <span x-text="result.result.frames_processed || result.result.stats.total_frames"></span></p>
+                                    <p><strong>Total detections:</strong> <span x-text="result.result.stats.total_detections"></span></p>
+                                    <p><strong>FPS:</strong> <span x-text="(result.result.stats.fps || result.result.stats.avg_fps)?.toFixed(2)"></span></p>
+                                    <p x-show="result.result.stats.total_payload_mb"><strong>Payload:</strong> <span x-text="result.result.stats.total_payload_mb?.toFixed(2)"></span> MB</p>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Image Result (YOLOv8) -->
+                    <template x-if="result.result_type === 'image'">
+                        <div class="image-result">
+                            <h5>Object Detection Results</h5>
+
+                            <div class="image-comparison">
+                                <!-- Source Image -->
+                                <template x-if="result.source_file">
+                                    <div class="image-panel">
+                                        <h6>Source Image</h6>
+                                        <img :src="window.ROOT_PATH + '/api/testing/media/samples/' + result.source_file"
+                                             class="result-image"
+                                             :alt="'Source: ' + result.source_file">
+                                    </div>
+                                </template>
+
+                                <!-- Annotated Image -->
+                                <template x-if="result.result_file">
+                                    <div class="image-panel">
+                                        <h6>Annotated Image (with detections)</h6>
+                                        <img :src="window.ROOT_PATH + '/api/testing/media/results/' + result.result_file + '?t=' + Date.now()"
+                                             class="result-image"
+                                             :alt="'Annotated: ' + result.result_file">
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Detection Details -->
+                            <template x-if="result.result?.images && result.result.images.length > 0">
+                                <div class="detection-details">
+                                    <h6>Detected Objects</h6>
+                                    <template x-for="img in result.result.images" :key="img.image">
+                                        <div class="detection-list">
+                                            <template x-for="(obj, idx) in img.objects" :key="idx">
+                                                <span class="detection-badge">
+                                                    <span x-text="obj.class"></span>
+                                                    <small x-text="(obj.confidence * 100).toFixed(1) + '%'"></small>
+                                                </span>
+                                            </template>
+                                            <template x-if="!img.objects || img.objects.length === 0">
+                                                <p class="no-detections">No objects detected</p>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <!-- Detection Stats -->
+                            <template x-if="result.result?.stats">
+                                <div class="detection-stats">
+                                    <p><strong>Total detections:</strong> <span x-text="result.result.total_detections"></span></p>
+                                    <p><strong>Avg inference:</strong> <span x-text="result.result.stats.avg_inference_ms?.toFixed(1) + 'ms'"></span></p>
+                                    <p x-show="result.result.stats.total_payload_mb"><strong>Payload:</strong> <span x-text="result.result.stats.total_payload_mb?.toFixed(2)"></span> MB</p>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Default/Raw Result -->
+                    <template x-if="!['classification', 'transcription', 'generation', 'video', 'image'].includes(result.result_type)">
+                        <div class="raw-result">
+                            <pre class="result-output" x-text="typeof result.result === 'string' ? result.result : JSON.stringify(result.result, null, 2)"></pre>
+                        </div>
+                    </template>
+
+                </div>
+            </template>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* Protocol selector */
+.protocol-selector {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.protocol-selector > label:first-child {
+    font-weight: 500;
+    min-width: 80px;
+}
+
+/* Input type selector */
+.input-type-selector {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.input-type-selector > label:first-child {
+    font-weight: 500;
+    min-width: 80px;
+}
+
+.input-type-selector .radio-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.input-type-selector .radio-label.suggested {
+    font-weight: 500;
+}
+
+.suggested-badge {
+    font-size: 0.65rem;
+    background: var(--primary-color);
+    color: white;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-left: 0.25rem;
+}
+
+/* Result header with protocol badge */
+.result-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: var(--bg-color);
+    border-radius: var(--radius-sm);
+}
+
+.protocol-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.protocol-badge.rest {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.protocol-badge.rest_binary {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.protocol-badge.grpc {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.dark .protocol-badge.rest {
+    background: #1e40af;
+    color: #dbeafe;
+}
+
+.dark .protocol-badge.rest_binary {
+    background: #92400e;
+    color: #fef3c7;
+}
+
+.dark .protocol-badge.grpc {
+    background: #166534;
+    color: #dcfce7;
+}
+
+/* Disabled protocol option */
+.protocol-selector .radio-label.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.protocol-selector .radio-label.disabled input {
+    cursor: not-allowed;
+}
+
+.protocol-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-left: 0.25rem;
+}
+
+.result-stats-inline {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.stat-item {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.stat-item strong {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.stat-label {
+    margin-right: 0.25rem;
+}
+
+.stat-secondary {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+/* Loading button state (orange) */
+.btn-loading {
+    background-color: #f59e0b !important;
+    border-color: #f59e0b !important;
+    color: white !important;
+    cursor: wait !important;
+}
+
+.btn-loading:hover {
+    background-color: #d97706 !important;
+    border-color: #d97706 !important;
+}
+
+.dark .btn-loading {
+    background-color: #d97706 !important;
+    border-color: #d97706 !important;
+}
+
+/* Additional styles for results display */
+.classification-result, .transcription-result, .generation-result, .video-result {
+    margin-top: 1rem;
+}
+
+.classification-result h5, .transcription-result h5, .generation-result h5, .video-result h5 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: var(--text-color);
+}
+
+.classification-result h6, .transcription-result h6, .generation-result h6, .video-result h6 {
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-muted);
+}
+
+.results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.result-item {
+    background: var(--bg-color);
+    padding: 0.75rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.result-text {
+    margin-bottom: 0.5rem;
+}
+
+.result-classification {
+    margin: 0.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.classification-label {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+}
+
+.classification-label.positive {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.classification-label.negative {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.dark .classification-label.positive {
+    background: #166534;
+    color: #dcfce7;
+}
+
+.dark .classification-label.negative {
+    background: #991b1b;
+    color: #fef2f2;
+}
+
+.confidence {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.result-details {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: 1rem;
+}
+
+.result-stats {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: var(--bg-color);
+    border-radius: var(--radius-sm);
+}
+
+.result-stats p {
+    margin: 0.25rem 0;
+    font-size: 0.875rem;
+}
+
+.audio-player-section {
+    margin-bottom: 1rem;
+}
+
+.audio-player {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+.transcription-item {
+    background: var(--bg-color);
+    padding: 1rem;
+    border-radius: var(--radius-sm);
+    margin-bottom: 0.5rem;
+}
+
+.transcription-content {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 0.5rem;
+}
+
+.transcription-item.error {
+    border-left: 3px solid var(--danger-color);
+}
+
+.transcription-error {
+    color: var(--danger-color);
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.no-transcription {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.generation-item {
+    background: var(--bg-color);
+    padding: 1rem;
+    border-radius: var(--radius-sm);
+    margin-bottom: 0.5rem;
+}
+
+.generation-prompt {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.generated-text {
+    white-space: pre-wrap;
+    font-family: inherit;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: var(--card-bg);
+    border-radius: var(--radius-sm);
+}
+
+.video-comparison {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.video-panel {
+    background: var(--bg-color);
+    padding: 0.75rem;
+    border-radius: var(--radius-sm);
+}
+
+.video-panel h6 {
+    margin-bottom: 0.5rem;
+}
+
+.video-note {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background: var(--card-bg);
+    border-radius: var(--radius-sm);
+}
+
+.video-note a {
+    color: var(--primary-color);
+}
+
+.video-player {
+    width: 100%;
+    max-height: 400px;
+    border-radius: var(--radius-sm);
+    background: #000;
+}
+
+.detection-stats {
+    background: var(--bg-color);
+    padding: 0.75rem;
+    border-radius: var(--radius-sm);
+}
+
+.detection-stats p {
+    margin: 0.25rem 0;
+    font-size: 0.875rem;
+}
+
+.inference-time {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--card-bg);
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+}
+
+/* Image comparison display */
+.image-comparison {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.image-panel {
+    background: var(--bg-color);
+    padding: 0.75rem;
+    border-radius: var(--radius-sm);
+}
+
+.image-panel h6 {
+    margin-bottom: 0.5rem;
+}
+
+.result-image {
+    width: 100%;
+    max-height: 500px;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    background: #000;
+}
+
+.detection-details {
+    background: var(--bg-color);
+    padding: 0.75rem;
+    border-radius: var(--radius-sm);
+    margin-bottom: 1rem;
+}
+
+.detection-details h6 {
+    margin-bottom: 0.5rem;
+}
+
+.detection-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.detection-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--primary-color);
+    color: white;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+}
+
+.detection-badge small {
+    opacity: 0.8;
+}
+
+.no-detections {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Eviction Info Styles */
+.eviction-info {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.eviction-info .pinned-notice {
+    color: #1e40af;
+    font-style: italic;
+}
+
+.eviction-info .timeout-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.eviction-info .custom-timeout-badge {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1e40af;
+    font-size: 0.625rem;
+    font-weight: 600;
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    margin-left: 0.5rem;
+}
+
+.dark .eviction-info .custom-timeout-badge {
+    background: #1e40af;
+    color: #dbeafe;
+}
+
+.eviction-info .eviction-countdown {
+    font-weight: 500;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-sm);
+    background-color: #f0fdf4;
+    color: #166534;
+    display: inline-block;
+}
+
+.eviction-info .eviction-countdown.warning {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.eviction-info .eviction-countdown.critical {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.eviction-info .eviction-eligible {
+    font-weight: 600;
+}
+
+.dark .eviction-info .eviction-countdown {
+    background-color: #166534;
+    color: #dcfce7;
+}
+
+.dark .eviction-info .eviction-countdown.warning {
+    background-color: #92400e;
+    color: #fef3c7;
+}
+
+.dark .eviction-info .eviction-countdown.critical {
+    background-color: #991b1b;
+    color: #fee2e2;
+}
+
+.dark .eviction-info .pinned-notice {
+    color: #93c5fd;
+}
+
+/* Device Configuration Section */
+.config-section {
+    background-color: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border-color);
+}
+
+.config-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.section-header h3 {
+    margin-bottom: 0;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+.config-not-available {
+    padding: 1rem;
+    background: var(--bg-color);
+    border-radius: var(--radius-sm);
+    text-align: center;
+}
+
+.config-not-available .error-text {
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.config-not-available .hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.config-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.config-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.config-label {
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.radio-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: var(--bg-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    transition: border-color 0.2s;
+}
+
+.radio-option:hover {
+    border-color: var(--primary-color);
+}
+
+.radio-option input[type="radio"] {
+    margin-top: 0.2rem;
+}
+
+.radio-text {
+    font-weight: 500;
+    display: block;
+}
+
+.radio-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: block;
+    margin-top: 0.125rem;
+}
+
+.input-with-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.config-input {
+    width: 80px;
+    padding: 0.5rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 0.875rem;
+}
+
+.input-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.gpu-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+}
+
+.checkbox-option:hover {
+    border-color: var(--primary-color);
+}
+
+.checkbox-text {
+    flex: 1;
+}
+
+.gpu-name {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.gpu-memory {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--card-bg);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+}
+
+.no-gpus {
+    padding: 0.75rem;
+    background: var(--bg-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.gpu-info {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-color);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.gpu-info .gpu-name {
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.gpu-info .gpu-memory {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    background: var(--card-bg);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+}
+
+.reload-option {
+    margin-top: 0.5rem;
+}
+
+.timeout-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.timeout-option {
+    padding: 0.5rem 0.75rem;
+}
+
+.custom-timeout-input {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+    padding-left: 1.5rem;
+}
+
+.checkbox-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: 0.25rem;
+}
+
+.config-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.config-result p {
+    padding: 0.75rem;
+    border-radius: var(--radius-sm);
+    margin-top: 0.5rem;
+}
+
+.config-result p.success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.config-result p.error {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.dark .config-result p.success {
+    background: #166534;
+    color: #dcfce7;
+}
+
+.dark .config-result p.error {
+    background: #991b1b;
+    color: #fef2f2;
+}
+
+/* Current Config Display */
+.current-config {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.current-config h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.config-toggle {
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+}
+
+.config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.config-header h4 {
+    margin: 0;
+}
+
+.config-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.config-display {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 0.75rem;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre;
+}
+
+/* Model Types Checkboxes */
+.model-types-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.model-types-checkboxes .checkbox-option {
+    flex: 0 0 auto;
+    min-width: 100px;
+}
+</style>
+
+<script>
+function modelDetailApp() {
+    return {
+        model: {},
+        modelLoading: false,  // Loading state for load/unload operations
+        modelLoadingAction: 'Loading...',  // Text to show during loading
+        modelTypes: [],  // Suggested types from API
+        allInputTypes: ['text', 'image', 'video', 'audio'],  // All available input types
+        samples: [],
+        protocol: 'rest',
+        inputType: 'text',
+        textInput: '',
+        selectedFile: '',
+        maxTokens: 100,
+        temperature: 0.7,
+        maxFrames: 10,
+        inferring: false,
+        result: null,
+        namespace: '{{ current_namespace }}',
+        modelName: '{{ model_name }}',
+        // Device configuration
+        deviceConfig: {
+            kind: 'KIND_CPU',
+            count: 1,
+            deviceIndex: 0,
+            reload: true,
+            timeoutMode: 'default',  // 'default' or 'custom'
+            customTimeoutMins: 30,   // Custom timeout in minutes
+            modelTypes: [],          // ['text', 'image', 'video', 'audio']
+        },
+        availableGpus: [],
+        loadingConfig: false,
+        updatingConfig: false,
+        configError: null,
+        configResult: null,
+        rawConfig: '',
+        showRawConfig: true,
+        configCopied: false,
+
+        get isLLM() {
+            const name = this.modelName.toLowerCase();
+            return name.includes('llm') || name.includes('smollm') || name.includes('llama');
+        },
+
+        get filteredSamples() {
+            return this.samples.filter(s => s.type === this.inputType);
+        },
+
+        get canRunInference() {
+            if (this.inputType === 'text') {
+                return this.textInput.trim().length > 0;
+            }
+            return this.selectedFile !== '';
+        },
+
+        async init() {
+            // Watch inputType and auto-switch protocol if rest-binary is selected for text
+            this.$watch('inputType', (value) => {
+                if (value === 'text' && this.protocol === 'rest-binary') {
+                    this.protocol = 'rest';
+                }
+            });
+
+            await Promise.all([
+                this.loadModel(),
+                this.loadModelTypes(),
+                this.loadSamples(),
+                this.loadConfig(),
+                this.loadGpuMetrics(),
+            ]);
+        },
+
+        async loadModel() {
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}?namespace=${this.namespace}`));
+                if (res.ok) {
+                    this.model = await res.json();
+                }
+            } catch (error) {
+                console.error('Failed to load model:', error);
+            }
+        },
+
+        async loadModelTypes() {
+            try {
+                const res = await fetch(buildUrl(`/api/testing/model-types/${this.modelName}?namespace=${this.namespace}`));
+                if (res.ok) {
+                    const data = await res.json();
+                    this.modelTypes = data.input_types || [];
+                    // Auto-select first suggested type if available, otherwise default to text
+                    if (this.modelTypes.length > 0) {
+                        this.inputType = this.modelTypes[0];
+                    } else {
+                        // Unknown model - user can pick any type, default to text
+                        this.inputType = 'text';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load model types:', error);
+                this.modelTypes = [];
+            }
+        },
+
+        async loadSamples() {
+            try {
+                const res = await fetch(buildUrl('/api/testing/samples'));
+                if (res.ok) {
+                    const data = await res.json();
+                    this.samples = data.samples || [];
+                }
+            } catch (error) {
+                console.error('Failed to load samples:', error);
+            }
+        },
+
+        async loadModelAction() {
+            console.log('loadModelAction called, setting modelLoading=true');
+            this.modelLoading = true;
+            this.modelLoadingAction = 'Loading...';
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}/load?namespace=${this.namespace}`), { method: 'POST' });
+                console.log('Load response received:', res.status);
+                if (res.ok) {
+                    await this.loadModel();
+                }
+            } catch (error) {
+                console.error('Failed to load model:', error);
+            } finally {
+                console.log('loadModelAction done, setting modelLoading=false');
+                this.modelLoading = false;
+            }
+        },
+
+        async unloadModel() {
+            console.log('unloadModel called, setting modelLoading=true');
+            this.modelLoading = true;
+            this.modelLoadingAction = 'Unloading...';
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}/unload?namespace=${this.namespace}`), { method: 'POST' });
+                console.log('Unload response received:', res.status);
+                if (res.ok) {
+                    await this.loadModel();
+                }
+            } catch (error) {
+                console.error('Failed to unload model:', error);
+            } finally {
+                console.log('unloadModel done, setting modelLoading=false');
+                this.modelLoading = false;
+            }
+        },
+
+        async pinModel() {
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}/pin?namespace=${this.namespace}`), { method: 'POST' });
+                if (res.ok) {
+                    await this.loadModel();
+                }
+            } catch (error) {
+                console.error('Failed to pin model:', error);
+            }
+        },
+
+        async unpinModel() {
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}/unpin?namespace=${this.namespace}`), { method: 'POST' });
+                if (res.ok) {
+                    await this.loadModel();
+                }
+            } catch (error) {
+                console.error('Failed to unpin model:', error);
+            }
+        },
+
+        async cordonModel() {
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}/cordon?namespace=${this.namespace}`), { method: 'POST' });
+                if (res.ok) {
+                    await this.loadModel();
+                }
+            } catch (error) {
+                console.error('Failed to cordon model:', error);
+            }
+        },
+
+        async uncordonModel() {
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}/uncordon?namespace=${this.namespace}`), { method: 'POST' });
+                if (res.ok) {
+                    await this.loadModel();
+                }
+            } catch (error) {
+                console.error('Failed to uncordon model:', error);
+            }
+        },
+
+        async runInference() {
+            this.inferring = true;
+            this.result = null;
+
+            const payload = {
+                input_type: this.inputType,
+                protocol: this.protocol,
+                max_tokens: this.maxTokens,
+                temperature: this.temperature,
+                max_frames: this.maxFrames,
+            };
+
+            if (this.inputType === 'text') {
+                payload.text = this.textInput;
+            } else {
+                payload.sample_file = this.selectedFile;
+            }
+
+            try {
+                const res = await fetch(buildUrl(`/api/testing/infer/${this.modelName}?namespace=${this.namespace}&protocol=${this.protocol}`), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                this.result = await res.json();
+
+                // Force video elements to reload after result is displayed
+                if (this.result?.result_type === 'video') {
+                    this.$nextTick(() => {
+                        document.querySelectorAll('.video-player').forEach(video => {
+                            video.load();
+                        });
+                    });
+                }
+            } catch (error) {
+                this.result = {
+                    success: false,
+                    error: error.message,
+                };
+            }
+
+            this.inferring = false;
+        },
+
+        formatTime(isoString) {
+            if (!isoString) return 'N/A';
+            const date = new Date(isoString);
+            return date.toLocaleString();
+        },
+
+        formatDuration(seconds) {
+            if (seconds === null || seconds === undefined) return 'N/A';
+            if (seconds < 60) return `${Math.floor(seconds)}s`;
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
+            return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+        },
+
+        formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+        },
+
+        async copyConfig() {
+            if (this.rawConfig) {
+                try {
+                    await navigator.clipboard.writeText(this.rawConfig);
+                    this.configCopied = true;
+                    setTimeout(() => { this.configCopied = false; }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy config:', err);
+                }
+            }
+        },
+
+        async loadConfig() {
+            this.loadingConfig = true;
+            this.configError = null;
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}/config?namespace=${this.namespace}`));
+                if (res.ok) {
+                    const data = await res.json();
+                    this.rawConfig = data.raw_config || '';
+                    // Parse instance_groups from response (note: plural)
+                    if (data.instance_groups && data.instance_groups.length > 0) {
+                        const group = data.instance_groups[0];
+                        this.deviceConfig.kind = group.kind || 'KIND_CPU';
+                        this.deviceConfig.count = group.count || 1;
+                        // Extract device index from gpus array (default to 0)
+                        this.deviceConfig.deviceIndex = (group.gpus && group.gpus.length > 0) ? group.gpus[0] : 0;
+                    }
+                    // Parse idle_timeout_secs
+                    if (data.idle_timeout_secs !== null && data.idle_timeout_secs !== undefined) {
+                        this.deviceConfig.timeoutMode = 'custom';
+                        this.deviceConfig.customTimeoutMins = Math.round(data.idle_timeout_secs / 60);
+                    } else {
+                        this.deviceConfig.timeoutMode = 'default';
+                        this.deviceConfig.customTimeoutMins = 30;  // Default display value
+                    }
+                    // Parse model_types
+                    this.deviceConfig.modelTypes = data.model_types || [];
+                } else if (res.status === 404) {
+                    this.configError = 'Configuration endpoint not available for this model';
+                } else {
+                    const error = await res.json();
+                    this.configError = error.detail || 'Failed to load configuration';
+                }
+            } catch (error) {
+                this.configError = 'Unable to load model configuration: ' + error.message;
+            }
+            this.loadingConfig = false;
+        },
+
+        async loadGpuMetrics() {
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/metrics?namespace=${this.namespace}`));
+                if (res.ok) {
+                    const data = await res.json();
+                    this.availableGpus = data.gpu || [];
+                }
+            } catch (error) {
+                console.error('Failed to load GPU metrics:', error);
+                this.availableGpus = [];
+            }
+        },
+
+        resetConfig() {
+            // Reload from server
+            this.loadConfig();
+        },
+
+        async updateConfig() {
+            this.updatingConfig = true;
+            this.configResult = null;
+
+            // Build payload matching HTTP proxy's UpdateDeviceConfigRequest
+            // gpus is an array with the single device index for GPU, empty for CPU
+            const payload = {
+                kind: this.deviceConfig.kind,
+                count: this.deviceConfig.count,
+                gpus: this.deviceConfig.kind === 'KIND_GPU' ? [parseInt(this.deviceConfig.deviceIndex) || 0] : [],
+                reload: this.deviceConfig.reload,
+                model_types: this.deviceConfig.modelTypes,  // Always send model types (can be empty array)
+            };
+
+            // Handle idle timeout
+            // - idle_timeout_secs = null: don't change existing setting
+            // - idle_timeout_secs = 0: remove custom timeout (use default)
+            // - idle_timeout_secs > 0: set custom timeout
+            if (this.deviceConfig.timeoutMode === 'default') {
+                payload.idle_timeout_secs = 0;  // Remove custom, use default
+            } else if (this.deviceConfig.timeoutMode === 'custom') {
+                payload.idle_timeout_secs = Math.max(60, this.deviceConfig.customTimeoutMins * 60);  // Convert to seconds, min 1 min
+            }
+
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}/config?namespace=${this.namespace}`), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    this.configResult = { success: true, message: data.message || 'Configuration updated successfully' };
+                    // Reload config to get updated raw config
+                    await this.loadConfig();
+                    // Also reload model status if we reloaded
+                    if (this.deviceConfig.reload) {
+                        await this.loadModel();
+                    }
+                } else {
+                    const error = await res.json();
+                    this.configResult = { success: false, message: error.detail || 'Failed to update configuration' };
+                }
+            } catch (error) {
+                this.configResult = { success: false, message: error.message };
+            }
+
+            this.updatingConfig = false;
+        },
+    };
+}
+</script>
+{% endblock %}

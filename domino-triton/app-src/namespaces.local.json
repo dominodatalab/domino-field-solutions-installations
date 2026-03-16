@@ -1,0 +1,37 @@
+{
+  "deployments": [
+    {
+      "name": "Development",
+      "namespace": "domino-inference-dev",
+      "proxy_url": "http://triton-proxy.domino-inference-dev.svc.cluster.local:8080",
+      "grpc_url": "triton-proxy.domino-inference-dev.svc.cluster.local:50051",
+      "admin_url": "http://triton-admin.domino-inference-dev.svc.cluster.local:8000",
+      "model_repo_path": "/mnt/domino-inference-dev-triton-repo-pvc/models"
+    },
+    {
+      "name": "Staging",
+      "namespace": "domino-inference-staging",
+      "proxy_url": "http://triton-proxy.domino-inference-staging.svc.cluster.local:8080",
+      "grpc_url": "triton-proxy.domino-inference-staging.svc.cluster.local:50051",
+      "admin_url": "http://triton-admin.domino-inference-staging.svc.cluster.local:8000",
+      "model_repo_path": "/mnt/domino-inference-staging-triton-repo-pvc/models"
+    },
+    {
+      "name": "Production",
+      "namespace": "domino-inference-prod",
+      "proxy_url": "http://triton-proxy.domino-inference-prod.svc.cluster.local:8080",
+      "grpc_url": "triton-proxy.domino-inference-prod.svc.cluster.local:50051",
+      "admin_url": "http://triton-admin.domino-inference-prod.svc.cluster.local:8000",
+      "model_repo_path": "/mnt/domino-inference-prod-triton-repo-pvc/models"
+    },
+    {
+      "name": "Local",
+      "namespace": "local",
+      "proxy_url": "http://http-proxy:8080",
+      "grpc_url": "grpc-proxy:50051",
+      "admin_url": "http://backend:8000",
+      "model_repo_path": "/triton-repo/models"
+    }
+  ],
+  "default": "local"
+}

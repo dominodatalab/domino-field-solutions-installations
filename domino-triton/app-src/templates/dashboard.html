@@ -1,0 +1,509 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Triton Admin{% endblock %}
+
+{% block content %}
+<div class="dashboard" x-data="dashboardApp()" x-init="init()">
+    <!-- Overview Section -->
+    <section class="overview-section">
+        <h2>Overview</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" x-text="overview.total_models">-</div>
+                <div class="stat-label">Total Models</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" x-text="overview.loaded_models">-</div>
+                <div class="stat-label">Loaded</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" x-text="overview.pinned_models">-</div>
+                <div class="stat-label">Pinned</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" x-text="overview.cordoned_models">-</div>
+                <div class="stat-label">Cordoned</div>
+            </div>
+            <div class="stat-card" :class="{ 'healthy': overview.triton_status === 'healthy', 'degraded': overview.triton_status === 'degraded', 'unavailable': overview.triton_status === 'unavailable' }">
+                <div class="stat-value" x-text="overview.triton_status || '-'">-</div>
+                <div class="stat-label">Triton Status</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" x-text="formatDuration(overview.default_idle_timeout_secs)">-</div>
+                <div class="stat-label">Idle Timeout</div>
+            </div>
+        </div>
+        <button class="refresh-btn" @click="refresh()" :disabled="loading">
+            <span x-show="!loading">Refresh</span>
+            <span x-show="loading">Loading...</span>
+        </button>
+    </section>
+
+    <!-- Resource Metrics Section -->
+    <section class="metrics-section">
+        <h2>Resource Metrics</h2>
+        <div class="metrics-grid">
+            <!-- CPU & Memory -->
+            <div class="metric-card">
+                <h3>CPU & Memory</h3>
+                <template x-if="metrics.cpu_memory">
+                    <div class="metric-details">
+                        <div class="metric-row">
+                            <span class="metric-label">CPU Utilization:</span>
+                            <span class="metric-value" x-text="metrics.cpu_memory.cpu_utilization_percent ? metrics.cpu_memory.cpu_utilization_percent.toFixed(1) + '%' : 'N/A'"></span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Memory Used:</span>
+                            <span class="metric-value" x-text="formatBytes(metrics.cpu_memory.memory_used_bytes) + ' / ' + formatBytes(metrics.cpu_memory.memory_total_bytes)"></span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" :style="'width: ' + getMemoryPercent(metrics.cpu_memory) + '%'" :class="{ 'high': getMemoryPercent(metrics.cpu_memory) > 80 }"></div>
+                        </div>
+                        <div class="metric-row small">
+                            <span class="metric-label">Free:</span>
+                            <span class="metric-value" x-text="formatBytes(metrics.cpu_memory.memory_free_bytes)"></span>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="!metrics.cpu_memory">
+                    <p class="no-data">No CPU/Memory data available</p>
+                </template>
+            </div>
+
+            <!-- GPU Metrics -->
+            <div class="metric-card gpu-metrics-card">
+                <div class="gpu-header-row">
+                    <h3>GPU</h3>
+                    <div class="gpu-view-toggle" x-show="metrics.gpu && metrics.gpu.length > 0">
+                        <button class="toggle-btn" :class="{ 'active': gpuView === 'aggregate' }" @click="gpuView = 'aggregate'">Aggregate</button>
+                        <button class="toggle-btn" :class="{ 'active': gpuView === 'per-gpu' }" @click="gpuView = 'per-gpu'">Per GPU</button>
+                    </div>
+                </div>
+
+                <template x-if="metrics.gpu && metrics.gpu.length > 0">
+                    <div>
+                        <!-- Aggregate View (Default) -->
+                        <div class="gpu-aggregate" x-show="gpuView === 'aggregate'">
+                            <div class="aggregate-header">
+                                <span class="gpu-count" x-text="metrics.gpu.length + ' GPU' + (metrics.gpu.length > 1 ? 's' : '')"></span>
+                            </div>
+
+                            <!-- Compute Utilization -->
+                            <div class="aggregate-section">
+                                <h4>Compute Utilization</h4>
+                                <div class="metric-row">
+                                    <span class="metric-label">Average:</span>
+                                    <span class="metric-value" x-text="getAggregateGPU('utilization').toFixed(1) + '%'"></span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill gpu" :style="'width: ' + getAggregateGPU('utilization') + '%'" :class="{ 'high': getAggregateGPU('utilization') > 80 }"></div>
+                                </div>
+                            </div>
+
+                            <!-- Memory -->
+                            <div class="aggregate-section">
+                                <h4>Memory</h4>
+                                <div class="metric-row">
+                                    <span class="metric-label">Total Used:</span>
+                                    <span class="metric-value" x-text="formatBytes(getAggregateGPU('memory_used')) + ' / ' + formatBytes(getAggregateGPU('memory_total'))"></span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill gpu" :style="'width: ' + (getAggregateGPU('memory_used') / getAggregateGPU('memory_total') * 100) + '%'" :class="{ 'high': (getAggregateGPU('memory_used') / getAggregateGPU('memory_total') * 100) > 80 }"></div>
+                                </div>
+                            </div>
+
+                            <!-- Power -->
+                            <div class="aggregate-section" x-show="getAggregateGPU('power_used') > 0">
+                                <h4>Power</h4>
+                                <div class="metric-row">
+                                    <span class="metric-label">Total:</span>
+                                    <span class="metric-value" x-text="getAggregateGPU('power_used').toFixed(0) + 'W / ' + getAggregateGPU('power_limit').toFixed(0) + 'W'"></span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill power" :style="'width: ' + (getAggregateGPU('power_used') / getAggregateGPU('power_limit') * 100) + '%'" :class="{ 'high': (getAggregateGPU('power_used') / getAggregateGPU('power_limit') * 100) > 80 }"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Per-GPU View -->
+                        <div class="gpu-per-device" x-show="gpuView === 'per-gpu'">
+                            <template x-for="(gpu, idx) in metrics.gpu" :key="gpu.gpu_id">
+                                <div class="gpu-device-card">
+                                    <div class="device-header">
+                                        <span class="device-index">GPU <span x-text="idx"></span></span>
+                                        <span class="device-name" x-text="gpu.name || 'Unknown'"></span>
+                                    </div>
+
+                                    <!-- Compute -->
+                                    <div class="device-metric">
+                                        <div class="metric-label-row">
+                                            <span class="metric-icon">&#9881;</span>
+                                            <span class="metric-name">Compute</span>
+                                            <span class="metric-value" x-text="gpu.utilization_percent !== null ? gpu.utilization_percent.toFixed(1) + '%' : 'N/A'"></span>
+                                        </div>
+                                        <div class="progress-bar thin">
+                                            <div class="progress-fill gpu" :style="'width: ' + (gpu.utilization_percent || 0) + '%'" :class="{ 'high': gpu.utilization_percent > 80 }"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Memory -->
+                                    <div class="device-metric">
+                                        <div class="metric-label-row">
+                                            <span class="metric-icon">&#128190;</span>
+                                            <span class="metric-name">Memory</span>
+                                            <span class="metric-value" x-text="formatBytes(gpu.memory_used_bytes) + ' / ' + formatBytes(gpu.memory_total_bytes)"></span>
+                                        </div>
+                                        <div class="progress-bar thin">
+                                            <div class="progress-fill gpu" :style="'width: ' + getGPUMemoryPercent(gpu) + '%'" :class="{ 'high': getGPUMemoryPercent(gpu) > 80 }"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Power -->
+                                    <div class="device-metric" x-show="gpu.power_usage_watts !== null">
+                                        <div class="metric-label-row">
+                                            <span class="metric-icon">&#9889;</span>
+                                            <span class="metric-name">Power</span>
+                                            <span class="metric-value" x-text="gpu.power_usage_watts?.toFixed(0) + 'W / ' + gpu.power_limit_watts?.toFixed(0) + 'W'"></span>
+                                        </div>
+                                        <div class="progress-bar thin">
+                                            <div class="progress-fill power" :style="'width: ' + (gpu.power_usage_watts / gpu.power_limit_watts * 100) + '%'" :class="{ 'high': (gpu.power_usage_watts / gpu.power_limit_watts * 100) > 80 }"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Temperature -->
+                                    <div class="device-metric temp" x-show="gpu.temperature_celsius !== null">
+                                        <span class="metric-icon">&#127777;</span>
+                                        <span class="metric-name">Temp</span>
+                                        <span class="metric-value" :class="{ 'high-temp': gpu.temperature_celsius > 80 }" x-text="gpu.temperature_celsius?.toFixed(0) + '°C'"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="!metrics.gpu || metrics.gpu.length === 0">
+                    <p class="no-data">No GPU detected or metrics unavailable</p>
+                </template>
+            </div>
+
+            <!-- Inference Metrics -->
+            <div class="metric-card wide">
+                <h3>Inference Stats</h3>
+                <template x-if="metrics.inference && metrics.inference.length > 0">
+                    <div class="inference-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Model</th>
+                                    <th>Total</th>
+                                    <th>Success</th>
+                                    <th>Failed</th>
+                                    <th>Avg Latency</th>
+                                    <th>Last Invoked</th>
+                                    <th>Invoked By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="inf in metrics.inference" :key="inf.model">
+                                    <tr>
+                                        <td x-text="inf.model"></td>
+                                        <td x-text="inf.inference_count"></td>
+                                        <td class="success" x-text="inf.inference_success"></td>
+                                        <td class="failure" x-text="inf.inference_failure"></td>
+                                        <td x-text="inf.avg_request_duration_ms ? inf.avg_request_duration_ms.toFixed(1) + ' ms' : 'N/A'"></td>
+                                        <td x-text="inf.last_access_time ? formatTime(inf.last_access_time) : 'Never'"></td>
+                                        <td x-text="inf.last_accessed_by || '-'"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </template>
+                <template x-if="!metrics.inference || metrics.inference.length === 0">
+                    <p class="no-data">No inference data yet. Run some inferences to see stats.</p>
+                </template>
+            </div>
+        </div>
+    </section>
+
+    <!-- Models Section -->
+    <section class="models-section">
+        <h2>Models</h2>
+        <div class="models-grid">
+            <template x-for="model in models" :key="model.name">
+                <div class="model-card" :class="{ 'loaded': model.loaded, 'cordoned': model.cordoned }">
+                    <div class="model-header">
+                        <h3 class="model-name" x-text="model.name"></h3>
+                        <div class="model-badges">
+                            <span class="badge loaded" x-show="model.loaded">LOADED</span>
+                            <span class="badge unloaded" x-show="!model.loaded">UNLOADED</span>
+                            <span class="badge pinned" x-show="model.pinned">PINNED</span>
+                            <span class="badge cordoned" x-show="model.cordoned">CORDONED</span>
+                        </div>
+                    </div>
+                    <div class="model-info">
+                        <p x-show="model.last_access_time">
+                            Last access: <span x-text="formatTime(model.last_access_time)"></span>
+                            <template x-if="model.last_accessed_by">
+                                <span> by <span x-text="model.last_accessed_by"></span></span>
+                            </template>
+                        </p>
+                        <p x-show="!model.last_access_time">Never accessed</p>
+                        <p>Access count: <span x-text="model.access_count"></span></p>
+                        <p x-show="model.idle_seconds !== null">
+                            Idle: <span x-text="formatDuration(model.idle_seconds)"></span>
+                        </p>
+                        <!-- Eviction countdown for loaded, non-pinned models -->
+                        <template x-if="model.loaded && !model.pinned && model.time_until_eviction_secs !== null">
+                            <p class="eviction-countdown" :class="{ 'warning': model.time_until_eviction_secs < 300, 'critical': model.time_until_eviction_secs <= 0 }">
+                                <span x-show="model.time_until_eviction_secs > 0">
+                                    Unload in: <span x-text="formatDuration(model.time_until_eviction_secs)"></span>
+                                </span>
+                                <span x-show="model.time_until_eviction_secs <= 0" class="eviction-eligible">
+                                    Eligible for eviction
+                                </span>
+                                <template x-if="model.is_custom_timeout">
+                                    <span class="custom-timeout-badge" title="Custom timeout configured">*</span>
+                                </template>
+                            </p>
+                        </template>
+                        <template x-if="model.loaded && model.pinned">
+                            <p class="pinned-notice">Protected from eviction</p>
+                        </template>
+                    </div>
+                    <div class="model-actions">
+                        <button class="btn btn-primary" @click="window.location.href=window.ROOT_PATH + '/models/' + model.name + '?namespace={{ current_namespace }}'">
+                            Details & Test
+                        </button>
+                        <button
+                            class="btn"
+                            :class="{
+                                'btn-loading': isModelLoading(model.name),
+                                'btn-success': !isModelLoading(model.name) && !model.loaded,
+                                'btn-danger': !isModelLoading(model.name) && model.loaded
+                            }"
+                            @click="model.loaded ? unloadModel(model.name) : loadModel(model.name)"
+                            :disabled="isModelLoading(model.name)"
+                            x-text="getLoadButtonText(model.name, model.loaded)"
+                        ></button>
+                        <div class="dropdown" x-data="{ open: false }">
+                            <button class="btn btn-secondary" @click="open = !open">⋮</button>
+                            <div class="dropdown-menu" x-show="open" @click.outside="open = false">
+                                <template x-if="!model.pinned">
+                                    <button @click="pinModel(model.name); open = false">Pin</button>
+                                </template>
+                                <template x-if="model.pinned">
+                                    <button @click="unpinModel(model.name); open = false">Unpin</button>
+                                </template>
+                                <template x-if="!model.cordoned">
+                                    <button @click="cordonModel(model.name); open = false">Cordon</button>
+                                </template>
+                                <template x-if="model.cordoned">
+                                    <button @click="uncordonModel(model.name); open = false">Uncordon</button>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+        <div x-show="models.length === 0 && !loading" class="no-models">
+            <p>No models found. Check that Triton is running and has models in the repository.</p>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function dashboardApp() {
+    return {
+        loading: false,
+        loadingModels: {},  // Track loading state per model: { modelName: 'loading' | 'unloading' }
+        overview: {},
+        models: [],
+        metrics: { gpu: [], cpu_memory: null, inference: [] },
+        namespace: '{{ current_namespace }}',
+        gpuView: 'aggregate',  // 'aggregate' or 'per-gpu'
+
+        async init() {
+            await this.refresh();
+            // Auto-refresh every 30 seconds
+            setInterval(() => this.refresh(), 30000);
+        },
+
+        async refresh() {
+            this.loading = true;
+            try {
+                const [overviewRes, modelsRes, metricsRes] = await Promise.all([
+                    fetch(buildUrl(`/api/dashboard/overview?namespace=${this.namespace}`)),
+                    fetch(buildUrl(`/api/dashboard/models?namespace=${this.namespace}`)),
+                    fetch(buildUrl(`/api/dashboard/metrics?namespace=${this.namespace}`)).catch(() => ({ ok: false })),
+                ]);
+
+                if (overviewRes.ok) {
+                    this.overview = await overviewRes.json();
+                }
+                if (modelsRes.ok) {
+                    const data = await modelsRes.json();
+                    this.models = data.models || [];
+                }
+                if (metricsRes.ok) {
+                    this.metrics = await metricsRes.json();
+                }
+            } catch (error) {
+                console.error('Failed to refresh:', error);
+            }
+            this.loading = false;
+        },
+
+        isModelLoading(name) {
+            return this.loadingModels.hasOwnProperty(name);
+        },
+
+        getLoadButtonText(name, loaded) {
+            if (this.loadingModels[name] === 'loading') return 'Loading...';
+            if (this.loadingModels[name] === 'unloading') return 'Unloading...';
+            return loaded ? 'Unload' : 'Load';
+        },
+
+        async loadModel(name) {
+            this.loadingModels = { ...this.loadingModels, [name]: 'loading' };
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${name}/load?namespace=${this.namespace}`), { method: 'POST' });
+                if (res.ok) {
+                    await this.refresh();
+                }
+            } catch (error) {
+                console.error('Failed to load model:', error);
+            } finally {
+                const { [name]: _, ...rest } = this.loadingModels;
+                this.loadingModels = rest;
+            }
+        },
+
+        async unloadModel(name) {
+            this.loadingModels = { ...this.loadingModels, [name]: 'unloading' };
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${name}/unload?namespace=${this.namespace}`), { method: 'POST' });
+                if (res.ok) {
+                    await this.refresh();
+                }
+            } catch (error) {
+                console.error('Failed to unload model:', error);
+            } finally {
+                const { [name]: _, ...rest } = this.loadingModels;
+                this.loadingModels = rest;
+            }
+        },
+
+        async pinModel(name) {
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${name}/pin?namespace=${this.namespace}`), { method: 'POST' });
+                if (res.ok) {
+                    await this.refresh();
+                }
+            } catch (error) {
+                console.error('Failed to pin model:', error);
+            }
+        },
+
+        async unpinModel(name) {
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${name}/unpin?namespace=${this.namespace}`), { method: 'POST' });
+                if (res.ok) {
+                    await this.refresh();
+                }
+            } catch (error) {
+                console.error('Failed to unpin model:', error);
+            }
+        },
+
+        async cordonModel(name) {
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${name}/cordon?namespace=${this.namespace}`), { method: 'POST' });
+                if (res.ok) {
+                    await this.refresh();
+                }
+            } catch (error) {
+                console.error('Failed to cordon model:', error);
+            }
+        },
+
+        async uncordonModel(name) {
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${name}/uncordon?namespace=${this.namespace}`), { method: 'POST' });
+                if (res.ok) {
+                    await this.refresh();
+                }
+            } catch (error) {
+                console.error('Failed to uncordon model:', error);
+            }
+        },
+
+        formatTime(isoString) {
+            if (!isoString) return 'N/A';
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = (now - date) / 1000;
+            if (diff < 60) return 'just now';
+            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+            return date.toLocaleDateString();
+        },
+
+        formatDuration(seconds) {
+            if (seconds === null || seconds === undefined) return 'N/A';
+            if (seconds < 60) return `${Math.floor(seconds)}s`;
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+            return `${Math.floor(seconds / 3600)}h`;
+        },
+
+        formatBytes(bytes) {
+            if (bytes === null || bytes === undefined) return 'N/A';
+            const gb = bytes / (1024 * 1024 * 1024);
+            if (gb >= 1) return `${gb.toFixed(1)} GB`;
+            const mb = bytes / (1024 * 1024);
+            if (mb >= 1) return `${mb.toFixed(0)} MB`;
+            return `${(bytes / 1024).toFixed(0)} KB`;
+        },
+
+        getMemoryPercent(cpuMemory) {
+            if (!cpuMemory || !cpuMemory.memory_total_bytes || !cpuMemory.memory_used_bytes) return 0;
+            return (cpuMemory.memory_used_bytes / cpuMemory.memory_total_bytes) * 100;
+        },
+
+        getGPUMemoryPercent(gpu) {
+            if (!gpu || !gpu.memory_total_bytes || !gpu.memory_used_bytes) return 0;
+            return (gpu.memory_used_bytes / gpu.memory_total_bytes) * 100;
+        },
+
+        getAggregateGPU(metric) {
+            const gpus = this.metrics.gpu || [];
+            if (gpus.length === 0) return 0;
+
+            switch (metric) {
+                case 'utilization':
+                    // Average utilization across all GPUs
+                    const utilSum = gpus.reduce((sum, g) => sum + (g.utilization_percent || 0), 0);
+                    return utilSum / gpus.length;
+                case 'memory_used':
+                    // Total memory used across all GPUs
+                    return gpus.reduce((sum, g) => sum + (g.memory_used_bytes || 0), 0);
+                case 'memory_total':
+                    // Total memory across all GPUs
+                    return gpus.reduce((sum, g) => sum + (g.memory_total_bytes || 0), 0);
+                case 'power_used':
+                    // Total power usage across all GPUs
+                    return gpus.reduce((sum, g) => sum + (g.power_usage_watts || 0), 0);
+                case 'power_limit':
+                    // Total power limit across all GPUs
+                    return gpus.reduce((sum, g) => sum + (g.power_limit_watts || 0), 0);
+                default:
+                    return 0;
+            }
+        },
+    };
+}
+</script>
+{% endblock %}

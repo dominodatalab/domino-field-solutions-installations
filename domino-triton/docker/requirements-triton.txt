@@ -1,0 +1,22 @@
+# Requirements for Triton Inference Server Python Backend
+# Used by: Dockerfile.triton
+#
+# These are SHARED dependencies used by multiple Python backend models.
+# Model-specific dependencies go in: triton-repo/models/<model>/requirements-model.txt
+# and are installed to: triton-repo/models/<model>/packages/
+#
+# Build model-specific packages with: ./scripts/build_model_packages.sh
+
+# HuggingFace model loading and tokenization
+transformers>=4.30.0
+tokenizers>=0.14.0
+sentencepiece>=0.1.99
+
+# ONNX Runtime integration for HuggingFace models
+optimum[onnxruntime]>=1.13.0
+
+# Data science essentials
+# Pin numpy<2 for compatibility with torch in TRT-LLM image
+numpy<2
+pandas>=2.0.0
+scikit-learn>=1.3.0

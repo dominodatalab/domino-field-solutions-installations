@@ -1,0 +1,30 @@
+# Requirements for Triton-compatible proxies
+# Shared between HTTP and gRPC proxies
+
+# Web framework (HTTP proxy)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# HTTP client
+httpx>=0.25.0
+requests>=2.31.0
+
+# gRPC (gRPC proxy)
+grpcio>=1.59.0
+grpcio-tools>=1.59.0
+protobuf>=4.25.0
+
+# Triton client (for gRPC proxy forwarding)
+tritonclient[grpc]>=2.40.0
+
+# Data handling
+numpy>=1.24.0
+pydantic>=2.5.0
+
+# Dashboard (HTML templates)
+jinja2>=3.1.0
+python-multipart>=0.0.6
+
+# Model testing (for dashboard inference)
+transformers>=4.30.0
+opencv-python-headless>=4.8.0

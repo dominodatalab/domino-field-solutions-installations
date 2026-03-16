@@ -1,0 +1,167 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.env.name }}-proxy
+  namespace: {{ .Values.env.namespace }}
+  labels:
+    app: {{ .Values.env.name }}-proxy
+    type: {{ .Values.env.type }}
+spec:
+  replicas: {{ .Values.proxy.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.env.name }}-proxy
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.env.name }}-proxy
+        type: {{ .Values.env.type }}
+        nucleus-client: "true"
+    spec:
+      containers:
+      # ----------------------------------------------------
+      # gRPC Proxy Container (Triton V2 Protocol Compatible)
+      # ----------------------------------------------------
+      - name: grpc-proxy
+        image: {{ .Values.proxy.grpc_image }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        env:
+        - name: TRITON_URL
+          value: "{{ .Values.env.name }}:8001"
+        - name: TRITON_HTTP_URL
+          value: "http://{{ .Values.env.name }}:8000"
+        - name: DOMINO_HOST
+          value: "http://nucleus-frontend.domino-platform:80"
+        - name: PROXY_HOST
+          value: "0.0.0.0"
+        - name: PROXY_GRPC_PORT
+          value: "50051"
+        - name: MODEL_STATE_DIR
+          value: "/model-state"
+        - name: TRITON_TIMEOUT_SECS
+          value: "{{ .Values.proxy.triton_timeout_secs }}"
+        - name: MODEL_LOAD_TIMEOUT_SECS
+          value: "{{ .Values.proxy.model_load_timeout_secs }}"
+        - name: MODEL_UNLOAD_TIMEOUT_SECS
+          value: "{{ .Values.proxy.model_unload_timeout_secs }}"
+        - name: MODEL_IDLE_TIMEOUT_SECS
+          value: "{{ .Values.proxy.model_idle_timeout_secs }}"
+        {{- if .Values.proxy.skip_auth }}
+        - name: SKIP_AUTH
+          value: "true"
+        {{- end }}
+        {{- if .Values.env.claim_based }}
+        - name: CLAIM_BASED
+          value: "true"
+        - name: CLAIM_SERVICE
+          value: "inference-server"
+        {{- end }}
+        ports:
+        - containerPort: 50051
+          name: grpc
+        resources:
+          requests:
+            cpu: {{ .Values.proxy.resources.requests.cpu | default "500m" | quote }}
+            memory: {{ .Values.proxy.resources.requests.memory | default "1Gi" | quote }}
+          limits:
+            cpu: {{ .Values.proxy.resources.limits.cpu | default "2" | quote }}
+            memory: {{ .Values.proxy.resources.limits.memory | default "2Gi" | quote }}
+        volumeMounts:
+        - mountPath: "/model-state"
+          name: model-state-vol
+        livenessProbe:
+          tcpSocket:
+            port: 50051
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 50051
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+      # ----------------------------------------------------
+      # HTTP Proxy Container (Triton V2 REST API Compatible)
+      # ----------------------------------------------------
+      - name: http-proxy
+        image: {{ .Values.proxy.http_image }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        env:
+        - name: TRITON_HTTP_URL
+          value: "http://{{ .Values.env.name }}:8000"
+        - name: TRITON_URL
+          value: "{{ .Values.env.name }}:8001"
+        - name: TRITON_METRICS_URL
+          value: "http://{{ .Values.env.name }}:8002"
+        - name: DOMINO_HOST
+          value: "http://nucleus-frontend.domino-platform:80"
+        - name: PROXY_HOST
+          value: "0.0.0.0"
+        - name: PROXY_PORT
+          value: "8080"
+        - name: MODEL_STATE_DIR
+          value: "/model-state"
+        - name: TRITON_TIMEOUT_SECS
+          value: "{{ .Values.proxy.triton_timeout_secs }}"
+        - name: MODEL_LOAD_TIMEOUT_SECS
+          value: "{{ .Values.proxy.model_load_timeout_secs }}"
+        - name: MODEL_UNLOAD_TIMEOUT_SECS
+          value: "{{ .Values.proxy.model_unload_timeout_secs }}"
+        - name: MODEL_IDLE_TIMEOUT_SECS
+          value: "{{ .Values.proxy.model_idle_timeout_secs }}"
+        {{- if .Values.proxy.skip_auth }}
+        - name: SKIP_AUTH
+          value: "true"
+        {{- end }}
+        {{- if .Values.env.claim_based }}
+        - name: CLAIM_BASED
+          value: "true"
+        - name: CLAIM_SERVICE
+          value: "inference-server"
+        {{- end }}
+        ports:
+        - containerPort: 8080
+          name: http
+        resources:
+          requests:
+            cpu: {{ .Values.proxy.resources.requests.cpu | default "500m" | quote }}
+            memory: {{ .Values.proxy.resources.requests.memory | default "1Gi" | quote }}
+          limits:
+            cpu: {{ .Values.proxy.resources.limits.cpu | default "2" | quote }}
+            memory: {{ .Values.proxy.resources.limits.memory | default "2Gi" | quote }}
+        volumeMounts:
+        - mountPath: "/model-state"
+          name: model-state-vol
+        livenessProbe:
+          httpGet:
+            path: /v2/health/live
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /v2/health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+      volumes:
+      # Shared model state volume (in-memory for fast access)
+      - name: model-state-vol
+        emptyDir:
+          medium: Memory
+          sizeLimit: 10Mi

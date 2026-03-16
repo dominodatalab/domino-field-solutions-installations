@@ -1,0 +1,48 @@
+# External Data Volume (EDV) for domino-compute namespace
+#
+# This PV/PVC allows Domino workloads in domino-compute to access the
+# triton-repo for a specific inference namespace. Useful for:
+# - Uploading models from Domino workspaces
+# - Downloading model weights
+# - Managing model configurations
+#
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{.Values.env.compute_namespace}}-{{.Values.env.namespace}}-triton-repo-pv
+spec:
+  capacity:
+    storage: 10Gi                  # ignored by S3, required by K8s
+  accessModes: [ ReadWriteMany ]
+  storageClassName: ""             # static provisioning
+  claimRef:
+    namespace: {{.Values.env.compute_namespace}}
+    name: {{.Values.env.namespace}}-triton-repo-pvc
+  csi:
+    driver: s3.csi.aws.com
+    volumeHandle: s3-csi-edv-{{.Values.env.namespace}}-triton-repo   # <- UNIQUE per PV
+    volumeAttributes:
+      bucketName: {{.Values.persistence.s3.bucket}}
+  mountOptions:
+    - "--region={{.Values.persistence.s3.region}}"
+    - "--prefix={{.Values.env.deployment_prefix}}/{{.Values.env.namespace}}/triton-repo/"
+    - "--uid=12574"
+    - "--gid=12574"
+    - "--allow-overwrite"
+    - "--allow-delete"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{.Values.env.namespace}}-triton-repo-pvc
+  namespace: {{.Values.env.compute_namespace}}
+  labels:
+    dominodatalab.com/external-data-volume: Generic
+spec:
+  accessModes: [ ReadWriteMany ]
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 10Gi
+  volumeName: {{.Values.env.compute_namespace}}-{{.Values.env.namespace}}-triton-repo-pv
+

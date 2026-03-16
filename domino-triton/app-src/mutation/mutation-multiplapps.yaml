@@ -1,0 +1,12 @@
+apiVersion: apps.dominodatalab.com/v1alpha1
+kind: Mutation
+metadata:
+  name: modify-app-ingress
+  namespace: domino-platform
+rules:
+- labelSelectors:
+  - "dominodatalab.com/workload-type==App"
+  modifyIngress:
+    metadata:
+      annotations:
+        nginx.ingress.kubernetes.io/auth-url: http://nucleus-frontend.domino-platform.svc.cluster.local/account/auth/service/authenticate?asheader=authorization&tokenprefix=Bearer&tokenFromIdp=true

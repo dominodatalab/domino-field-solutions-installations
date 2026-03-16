@@ -1,0 +1,55 @@
+# PersistentVolume/PersistentVolumeClaim for triton-repo (models + weights + cache)
+#
+# Uses S3 for model repository - shared, easy to update from Domino workspaces
+#
+# Directory structure on S3:
+#   s3://<bucket>/<namespace>/<deployment_prefix>/triton-repo/
+#   ├── models/            <- Triton model configs (config.pbtxt, model.py)
+#   ├── weights/           <- Pre-downloaded model weights
+#   └── hf-cache/          <- HuggingFace/TensorRT runtime cache
+#
+# Note: model-state is stored in an in-memory emptyDir volume (see proxy-deployment.yaml)
+#
+
+# =============================================================================
+# S3 Storage for Model Repository
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{.Values.env.namespace}}-triton-repo-pv
+spec:
+  capacity:
+    storage: 10Gi                  # ignored by S3, required by K8s
+  accessModes: [ ReadWriteMany ]   # S3 supports multi-pod access
+  storageClassName: ""             # static provisioning
+  claimRef:
+    namespace: {{.Values.env.namespace}}
+    name: triton-repo-pvc
+  csi:
+    driver: s3.csi.aws.com
+    volumeHandle: s3-csi-{{.Values.env.namespace}}-triton-repo
+    volumeAttributes:
+      bucketName: {{.Values.persistence.s3.bucket}}
+  mountOptions:
+    - "--region={{.Values.persistence.s3.region}}"
+    - "--prefix={{.Values.env.deployment_prefix}}/{{.Values.env.namespace}}/triton-repo/"
+    - "--uid=1000"
+    - "--gid=1000"
+    - "--allow-delete"
+    - "--allow-overwrite"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: triton-repo-pvc
+  namespace: {{.Values.env.namespace}}
+  labels:
+    dominodatalab.com/external-data-volume: Generic
+spec:
+  accessModes: [ ReadWriteMany ]
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 10Gi
+  volumeName: {{.Values.env.namespace}}-triton-repo-pv

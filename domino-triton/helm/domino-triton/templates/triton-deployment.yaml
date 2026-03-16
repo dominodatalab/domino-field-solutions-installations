@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.env.name }}
+  namespace: {{ .Values.env.namespace }}
+  labels:
+    app: {{ .Values.env.name }}
+    type: {{ .Values.env.type }}
+    nucleus-client: "true"
+    security.istio.io/tlsMode: "istio"
+spec:
+  replicas: {{ .Values.triton_inference_server.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.env.name }}
+
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.env.name }}
+        type: {{ .Values.env.type }}
+        nucleus-client: "true"
+        security.istio.io/tlsMode: "istio"
+
+    spec:
+      {{- if .Values.env.node_selector }}
+      nodeSelector:
+        dominodatalab.com/node-pool: {{ .Values.env.node_selector }}
+      {{- end }}
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+      - name: triton
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - all
+        image: {{ .Values.triton_inference_server.image }}
+
+        env:
+          - name: MODEL_REPO
+            value: "/triton-repo/models"  # Used by Python backend models to find weights
+          - name: HF_HOME
+            value: "/triton-repo/hf-cache"  # HuggingFace cache directory (S3 EDV)
+          - name: TRANSFORMERS_CACHE
+            value: "/triton-repo/hf-cache"  # Transformers cache directory (S3 EDV)
+
+        args:
+          - "tritonserver"
+          - "--model-repository=/triton-repo/models"  # Triton model configs
+          - "--exit-on-error=false"      # Don't exit if models fail
+          - "--strict-readiness=false"   # Report ready even with failed models
+          - "--model-control-mode=explicit"
+          - "--allow-grpc=true"          # Enable gRPC endpoint
+          - "--grpc-port=8001"
+          - "--allow-http=true"          # Enable HTTP endpoint (required for REST proxy)
+          - "--http-port=8000"
+          - "--allow-metrics=true"       # Enable metrics endpoint
+          - "--metrics-port=8002"
+          - "--log-verbose=1"
+
+        resources:
+          requests:
+            cpu: {{ .Values.env.cores }}
+            memory: "{{ .Values.env.memory }}"
+            nvidia.com/gpu:  {{ .Values.env.gpu }}
+          limits:
+            cpu: {{ .Values.env.cores }}
+            memory: "{{ .Values.env.memory }}"
+            nvidia.com/gpu:  {{ .Values.env.gpu }}
+        ports:
+          - containerPort: 8000
+            name: http
+          - containerPort: 8001
+            name: grpc
+          - containerPort: 8002
+            name: metrics
+
+        volumeMounts:
+          - mountPath: "/triton-repo"
+            name: triton-repo-vol
+          - mountPath: /dev/shm
+            name: dshm
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 10Gi
+        - name: triton-repo-vol
+          persistentVolumeClaim:
+            claimName: triton-repo-pvc

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Triton Admin Dashboard{% endblock %}</title>
+    <link rel="stylesheet" href="{{ root_path }}/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        // Root path for reverse proxy support (set by server)
+        window.ROOT_PATH = '{{ root_path }}';
+
+        // Helper function to build URLs with root path
+        function buildUrl(path) {
+            return window.ROOT_PATH + path;
+        }
+    </script>
+</head>
+<body x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }" :class="{ 'dark': darkMode }">
+    <header class="header">
+        <div class="header-left">
+            <h1><a href="{{ root_path }}/">Triton Admin Dashboard</a></h1>
+        </div>
+        <div class="header-center">
+            <nav class="nav">
+                <a href="{{ root_path }}/" class="nav-link {% if request.url.path == '/' or request.url.path == root_path + '/' %}active{% endif %}">Dashboard</a>
+                <a href="{{ root_path }}/results-page" class="nav-link {% if '/results' in request.url.path %}active{% endif %}">Results</a>
+                <a href="{{ root_path }}/admin" class="nav-link {% if '/admin' in request.url.path %}active{% endif %}">Admin</a>
+                <a href="{{ root_path }}/architecture" class="nav-link {% if '/architecture' in request.url.path %}active{% endif %}">Architecture</a>
+                <a href="{{ root_path }}/presentation" class="nav-link {% if '/presentation' in request.url.path %}active{% endif %}">Presentation</a>
+            </nav>
+        </div>
+        <div class="header-right">
+            <label class="namespace-label">Namespace:</label>
+            <select id="namespace-select" class="namespace-select" onchange="changeNamespace(this.value)">
+                {% for ns in namespaces %}
+                <option value="{{ ns.namespace }}" {% if ns.namespace == current_namespace %}selected{% endif %}>
+                    {{ ns.name }} ({{ ns.namespace }})
+                </option>
+                {% endfor %}
+            </select>
+            <button @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)" class="theme-toggle">
+                <span x-text="darkMode ? '☀️' : '🌙'"></span>
+            </button>
+        </div>
+    </header>
+
+    <main class="main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>Triton Admin Dashboard &copy; 2024</p>
+    </footer>
+
+    <script src="{{ root_path }}/static/dashboard.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

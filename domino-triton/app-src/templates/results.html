@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Benchmark Results - Triton Admin{% endblock %}
+
+{% block content %}
+<div class="results-page" x-data="resultsApp()" x-init="init()">
+    <div class="page-header">
+        <h2>Benchmark Results</h2>
+    </div>
+
+    <section class="results-list-section">
+        <div class="results-list" x-show="results.length > 0">
+            <template x-for="result in results" :key="result.path">
+                <div class="result-card">
+                    <div class="result-info">
+                        <h3 class="result-name" x-text="result.filename"></h3>
+                        <p class="result-meta">
+                            <span x-text="formatBytes(result.size_bytes)"></span>
+                            &middot;
+                            <span x-text="formatDate(result.modified)"></span>
+                        </p>
+                    </div>
+                    <div class="result-actions">
+                        <a :href="getViewUrl(result)" target="_blank" class="btn btn-primary">View</a>
+                        <a :href="window.ROOT_PATH + '/results/' + result.path" download class="btn btn-secondary">Download</a>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <div class="no-results" x-show="results.length === 0 && !loading">
+            <p>No benchmark results found.</p>
+            <p class="hint">Run benchmarks to generate results that will appear here.</p>
+        </div>
+
+        <div class="loading" x-show="loading">
+            <p>Loading results...</p>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function resultsApp() {
+    return {
+        results: [],
+        loading: false,
+
+        async init() {
+            await this.loadResults();
+        },
+
+        async loadResults() {
+            this.loading = true;
+            try {
+                const res = await fetch(buildUrl('/api/testing/results'));
+                if (res.ok) {
+                    const data = await res.json();
+                    this.results = data.results || [];
+                }
+            } catch (error) {
+                console.error('Failed to load results:', error);
+            }
+            this.loading = false;
+        },
+
+        formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        },
+
+        formatDate(timestamp) {
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        },
+
+        getViewUrl(result) {
+            // Use markdown viewer for .md files, direct link for others
+            if (result.filename.endsWith('.md')) {
+                return window.ROOT_PATH + '/view-result/' + result.path;
+            }
+            return window.ROOT_PATH + '/results/' + result.path;
+        },
+    };
+}
+</script>
+{% endblock %}

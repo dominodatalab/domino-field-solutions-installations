@@ -1,0 +1,7 @@
+# Requirements for Admin Service
+# Used by: Dockerfile.triton.admin
+
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+requests==2.32.4
+kubernetes==31.0.0

@@ -1,0 +1,63 @@
+# Requirements for inference clients and model downloads
+#
+# Usage:
+#   pip install -r docker/requirements-client.txt
+#
+# Download models:
+#   python scripts/download_all.py
+#
+# Run inference clients:
+#   python scripts/bert_text_grpc_client.py --texts "Hello world"
+#   python scripts/whisper_audio_rest_client.py --audio audio.wav
+#   python scripts/yolov8n_video_grpc_client.py --video video.mp4
+#   python scripts/llm_text_grpc_client.py --prompt "What is AI?"
+
+# =============================================================================
+# gRPC and Protocol Buffers (pinned to match Triton image)
+# =============================================================================
+grpcio==1.67.1             # Match Triton image version
+grpcio-tools==1.67.1       # Match grpcio for proto generation
+protobuf==5.28.3           # Match Triton image version
+
+# =============================================================================
+# Triton client libraries
+# =============================================================================
+tritonclient[all]>=2.40.0  # gRPC + HTTP support
+
+# =============================================================================
+# HTTP/REST client
+# =============================================================================
+requests>=2.28.0
+
+# =============================================================================
+# Core ML frameworks
+# =============================================================================
+torch>=2.0.0
+transformers>=4.30.0
+
+# =============================================================================
+# ONNX export and runtime
+# =============================================================================
+onnx>=1.14.0
+onnxruntime>=1.15.0
+onnxscript>=0.1.0          # Required by PyTorch 2.x for ONNX export
+
+# =============================================================================
+# YOLOv8n - Object Detection
+# =============================================================================
+ultralytics>=8.0.0
+opencv-python-headless>=4.8.0  # Video/image processing (headless - no GUI dependencies)
+
+# =============================================================================
+# Whisper - Audio Transcription
+# =============================================================================
+optimum[onnxruntime]>=1.12.0
+librosa>=0.10.0
+soundfile>=0.12.0
+
+# =============================================================================
+# Utilities
+# =============================================================================
+# Pin numpy<2 for compatibility with torch
+numpy>=1.24.0,<2
+huggingface_hub>=0.16.0
