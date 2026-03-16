@@ -65,9 +65,14 @@ def post_form(url: str, data: dict) -> dict:
         data=data,
         headers={"Content-Type": "application/x-www-form-urlencoded"},
         timeout=30,
+        verify=False
     )
     if r.status_code >= 400:
         die(f"{r.status_code} error POST {url}: {r.text[:500]}")
+    print(r.status_code)
+    print("----")
+    print(r.text)
+    print("----")
     return r.json()
 
 
@@ -76,6 +81,7 @@ def get(url: str, token: str) -> dict:
         url,
         headers={"Authorization": f"Bearer {token}"},
         timeout=30,
+        verify=False
     )
     if r.status_code >= 400:
         die(f"{r.status_code} error GET {url}: {r.text[:500]}")
@@ -91,6 +97,7 @@ def post_json(url: str, token: str, payload: dict) -> None:
         },
         json=payload,
         timeout=30,
+        verify=False
     )
     if r.status_code not in (200, 201, 204):
         die(f"{r.status_code} error POST {url}: {r.text[:500]}")

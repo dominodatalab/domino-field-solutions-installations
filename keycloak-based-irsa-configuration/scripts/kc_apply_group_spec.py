@@ -92,6 +92,7 @@ def post_form(url: str, data: Dict[str, str], timeout: int = 30) -> requests.Res
         data=data,
         headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
         timeout=timeout,
+        verify=False  # Disables SSL certificate verification
     )
 
 
@@ -117,7 +118,7 @@ def mint_admin_token(cfg: KCConfig) -> str:
 
 def kc_get(cfg: KCConfig, token: str, path: str, params: Optional[Dict[str, str]] = None) -> Any:
     url = f"{cfg.base_url}{path}"
-    r = requests.get(url, headers=_headers_json(token), params=params, timeout=30)
+    r = requests.get(url, headers=_headers_json(token), params=params, timeout=30,verify=False)
     if r.status_code >= 400:
         raise KCError(f"{r.status_code} error GET {url}: {r.text[:800]}")
     return r.json()
@@ -130,6 +131,7 @@ def kc_post_json(cfg: KCConfig, token: str, path: str, payload: Dict[str, Any]) 
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"},
         json=payload,
         timeout=30,
+        verify=False
     )
 
 
@@ -140,6 +142,7 @@ def kc_put(cfg: KCConfig, token: str, path: str, payload: Optional[Dict[str, Any
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"},
         json=payload,
         timeout=30,
+        verify=False
     )
 
 
