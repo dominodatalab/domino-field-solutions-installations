@@ -236,6 +236,71 @@ kubectl label namespace ${NAMESPACE} domino-triton=true
 
 ---
 
+## S3 Bucket Structure Setup
+
+Before installing the Helm chart, create the required folder structure in your S3 bucket. The S3 CSI driver will mount this path as the Triton model repository.
+
+### Folder Structure
+
+The S3 key prefix follows this pattern:
+
+```
+s3://{bucket}/{deployment_prefix}/domino-inference-{env}/triton-repo/
+```
+
+Where:
+- `{bucket}` - Your S3 bucket name (configured in `persistence.s3.bucket`)
+- `{deployment_prefix}` - Your deployment prefix (configured in `env.deployment_prefix`, e.g., EKS cluster name)
+- `{env}` - Environment suffix: `dev`, `test`, or `prod` (must match your namespace)
+
+### Create the Folder Structure
+
+```bash
+# Set your configuration
+export BUCKET_NAME=your-model-bucket
+export DEPLOYMENT_PREFIX=my-eks-cluster  # e.g., your EKS cluster name
+export ENV=dev  # or test, prod
+
+# Create the folder structure
+aws s3api put-object --bucket ${BUCKET_NAME} --key "${DEPLOYMENT_PREFIX}/domino-inference-${ENV}/triton-repo/models/"
+aws s3api put-object --bucket ${BUCKET_NAME} --key "${DEPLOYMENT_PREFIX}/domino-inference-${ENV}/triton-repo/weights/"
+```
+
+### Verify the Structure
+
+```bash
+aws s3 ls s3://${BUCKET_NAME}/${DEPLOYMENT_PREFIX}/domino-inference-${ENV}/triton-repo/
+
+# Expected output:
+#                            PRE models/
+#                            PRE weights/
+```
+
+### Example: Multiple Environments
+
+For a deployment prefix of `prod-eks-cluster`, your S3 structure would look like:
+
+```
+s3://my-company-triton-models/
+└── prod-eks-cluster/
+    ├── domino-inference-dev/
+    │   └── triton-repo/
+    │       ├── models/          # Triton model configs (config.pbtxt, model.py)
+    │       └── weights/         # Model weights (HuggingFace, ONNX files)
+    ├── domino-inference-test/
+    │   └── triton-repo/
+    │       ├── models/
+    │       └── weights/
+    └── domino-inference-prod/
+        └── triton-repo/
+            ├── models/
+            └── weights/
+```
+
+**Important:** The `models/` folder will contain your Triton model configurations (`config.pbtxt` and `model.py` for Python backend models). The `weights/` folder will contain downloaded model weights (HuggingFace models, ONNX files, etc.).
+
+---
+
 ## Helm Chart Configuration
 
 ### values.yaml Reference
@@ -264,9 +329,6 @@ env:
 
   # Label for resource identification
   type: domino-triton-inference
-
-  # Enable claims-based authorization
-  claim_based: true
 
 # =============================================================================
 # Proxy Configuration
@@ -336,30 +398,103 @@ istio:
 
 ## Installation
 
+### Configure values-{env}.yaml
+
+Before installing, create or edit your environment-specific values file (e.g., `values-dev.yaml`, `values-test.yaml`, `values-prod.yaml`).
+
+**Required configuration:**
+
+```yaml
+# =============================================================================
+# REQUIRED: Update these values for your environment
+# =============================================================================
+
+env:
+  # Namespace where Triton will be deployed
+  # Must match the namespace you created in "Namespace Setup" section
+  namespace: domino-inference-dev
+
+  # Deployment prefix - allows multiple deployments to share the same namespace
+  # Default: Use your EKS cluster name or a unique identifier
+  # Example: "my-eks-cluster", "team-alpha", "user-123"
+  deployment_prefix: my-eks-cluster
+
+  # Node selector for scheduling pods on specific node pools
+  # Default: "default-gpu" (for GPU-enabled node pools)
+  # Set to "" for CPU-only deployments
+  node_selector: default-gpu
+
+persistence:
+  s3:
+    # S3 bucket name for model storage
+    # Must match the bucket configured in your IAM policy
+    bucket: your-model-bucket-name
+
+    # AWS region where your S3 bucket is located
+    region: us-west-2
+```
+
+**Example `values-dev.yaml`:**
+
+```yaml
+env:
+  compute_namespace: domino-compute
+  namespace: domino-inference-dev
+  deployment_prefix: my-eks-cluster
+  node_selector: default-gpu
+  memory: 16Gi
+  cores: 1
+  gpu: 1
+  name: triton-inference-server
+  type: domino-triton-inference
+
+persistence:
+  s3:
+    bucket: my-company-triton-models
+    region: us-west-2
+```
+
+**Configuration reference:**
+
+| Parameter | Description | Default | Required |
+|-----------|-------------|---------|----------|
+| `env.namespace` | Target Kubernetes namespace | `domino-inference-dev` | Yes |
+| `env.deployment_prefix` | Unique prefix for resources (e.g., EKS cluster name) | `default` | Yes |
+| `env.node_selector` | Node pool label for scheduling | `default-gpu` | Yes |
+| `persistence.s3.bucket` | S3 bucket name for model storage | - | Yes |
+| `persistence.s3.region` | AWS region for S3 bucket | `us-west-2` | Yes |
+| `env.gpu` | Number of GPUs per Triton pod | `0` | No |
+| `env.memory` | Memory allocation per Triton pod | `16Gi` | No |
+
 ### Install
 
 ```bash
-export NAMESPACE=domino-inference-dev
+export env=dev
+export NAMESPACE=domino-inference-${env}
 
+#kubectl create namespace $NAMESPACE
+#kubectl label namespace $$NAMESPACE domino-compute=true domino-triton=true  
 helm install domino-triton helm/domino-triton/ \
     -n ${NAMESPACE} \
-    -f helm/domino-triton/values-dev.yaml
+    -f helm/domino-triton/values-${env}.yaml
 ```
 
 ### Upgrade
 
 ```bash
-export NAMESPACE=domino-inference-dev
+env=dev
+export NAMESPACE=domino-inference-${env}
 
 helm upgrade domino-triton helm/domino-triton/ \
     -n ${NAMESPACE} \
-    -f helm/domino-triton/values-dev.yaml
+    -f helm/domino-triton/values-${env}.yaml
 ```
 
 ### Uninstall
 
 ```bash
-export NAMESPACE=domino-inference-dev
+export env=dev
+export NAMESPACE=domino-inference-${env}
 
 helm delete domino-triton -n ${NAMESPACE}
 ```
@@ -587,15 +722,6 @@ curl "${ADMIN_URL}/v1/deployments/inference-server/logs?tail_lines=100" \
   -H "X-Domino-Api-Key: ${DOMINO_USER_API_KEY}"
 ```
 
-### Claims-Based Authorization
-
-When `env.claim_based: true`, the admin service validates user claims:
-
-- **Claim Service**: `triton-inference-server`
-- **Claim Role**: `admin`
-
-Users must have the appropriate Domino claims to perform admin operations. See [Claims-Based Authentication](claims-based-auth.md) for details.
-
 ---
 
 ## Troubleshooting
@@ -714,7 +840,6 @@ kubectl logs -n ${NAMESPACE} -l app=triton-inference-server-proxy -c rest-proxy
 | `TRITON_HTTP_URL` | REST Proxy | Triton HTTP address |
 | `DOMINO_HOST` | All Proxies | Domino auth endpoint |
 | `INFERENCE_SERVER_DEPLOYMENT_NAME` | Admin | Triton deployment name |
-| `CLAIM_BASED` | Admin | Enable claims auth |
 
 ### Image Versions
 

@@ -5,15 +5,14 @@
 
 env:
   compute_namespace: domino-compute
-  namespace: domino-inference-dev
+  namespace: domino-inference-{ADD-ENV}
   node_selector: ""
   memory: 16Gi
   cores: 1
   gpu: 0
   name: triton-inference-server
   type: domino-triton-inference
-  claim_based: true
-  deployment_prefix: default  # Allows multiple deployments to share namespace (e.g., user ID)
+  deployment_prefix: <ADD>  # Allows multiple deployments to share namespace (e.g., eks cluster ID)
 
 # Proxy configuration
 # These proxies implement standard Triton V2 protocol with Domino authentication
@@ -27,6 +26,11 @@ proxy:
   # Skip authentication (for development/testing only)
   # WARNING: Do not enable in production!
   skip_auth: false
+
+  # Admin endpoint authorization
+  # If false: any authenticated user can call admin endpoints (load/unload models)
+  # If true: only Domino platform admins (isAdmin=true) can call admin endpoints
+  only_admin: false
 
   # Timeouts
   triton_timeout_secs: 30
@@ -47,7 +51,6 @@ proxy:
 admin:
   image: "quay.io/domino/domino-triton-admin:v3"
   replicas: 1
-  domino_service_auth_key: "domino-service-auth"
 
 # Triton Inference Server configuration
 triton_inference_server:
@@ -65,7 +68,7 @@ persistence:
   # S3 configuration for model repository (configs + weights + cache)
   # Directory structure: triton-repo/{models, weights, hf-cache}
   s3:
-    bucket: <MY_BUCKET>
+    bucket: { ADD BUCKET }
     region: "us-west-2"
 
 # Istio service mesh configuration

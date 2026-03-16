@@ -32,14 +32,10 @@ spec:
           value: {{ .Values.env.name }}
         - name: DOMINO_HOST
           value: "http://nucleus-frontend.domino-platform:80"
-        - name: CLAIM_BASED
-          value: "{{ .Values.env.claim_based }}"
-        - name: CLAIM_SERVICE
-          value: "{{ .Values.env.name }}"
-        - name: CLAIM_ROLE
-          value: "admin"
-        - name: DOMINO_SERVICE_AUTH_KEY
-          value: "{{ .Values.admin.domino_service_auth_key }}"
+        {{- if .Values.proxy.only_admin }}
+        - name: ONLY_ADMIN
+          value: "true"
+        {{- end }}
         - name: TRITON_REPO_PATH
           value: "/triton-repo"
         ports:

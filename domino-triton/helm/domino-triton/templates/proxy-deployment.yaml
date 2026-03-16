@@ -57,11 +57,9 @@ spec:
         - name: SKIP_AUTH
           value: "true"
         {{- end }}
-        {{- if .Values.env.claim_based }}
-        - name: CLAIM_BASED
+        {{- if .Values.proxy.only_admin }}
+        - name: ONLY_ADMIN
           value: "true"
-        - name: CLAIM_SERVICE
-          value: "inference-server"
         {{- end }}
         ports:
         - containerPort: 50051
@@ -127,11 +125,9 @@ spec:
         - name: SKIP_AUTH
           value: "true"
         {{- end }}
-        {{- if .Values.env.claim_based }}
-        - name: CLAIM_BASED
+        {{- if .Values.proxy.only_admin }}
+        - name: ONLY_ADMIN
           value: "true"
-        - name: CLAIM_SERVICE
-          value: "inference-server"
         {{- end }}
         ports:
         - containerPort: 8080
