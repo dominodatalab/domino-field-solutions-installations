@@ -49,15 +49,15 @@ output [
 
 instance_group [
   {
-    kind: KIND_CPU
+    kind: KIND_GPU
     count: 1
   }
 ]
 
-# For GPU deployment:
+# For CPU deployment:
 # instance_group [
 #   {
-#     kind: KIND_GPU
+#     kind: KIND_CPU
 #     count: 1
 #   }
 # ]
