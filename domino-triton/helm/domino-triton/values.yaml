@@ -5,14 +5,14 @@
 
 env:
   compute_namespace: domino-compute
-  namespace: domino-inference-{ADD-ENV}
+  namespace: domino-inference-dev
   node_selector: ""
   memory: 16Gi
   cores: 1
   gpu: 0
   name: triton-inference-server
   type: domino-triton-inference
-  deployment_prefix: <ADD>  # Allows multiple deployments to share namespace (e.g., eks cluster ID)
+  deployment_prefix: default  # Allows multiple deployments to share namespace (e.g., user ID)
 
 # Proxy configuration
 # These proxies implement standard Triton V2 protocol with Domino authentication
@@ -68,8 +68,20 @@ persistence:
   # S3 configuration for model repository (configs + weights + cache)
   # Directory structure: triton-repo/{models, weights, hf-cache}
   s3:
-    bucket: { ADD BUCKET }
+    bucket: wgamage
     region: "us-west-2"
+
+# State pod configuration (Redis for shared proxy state)
+state:
+  image: "redis:7-alpine"
+  maxmemory: "128mb"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
 
 # Istio service mesh configuration
 istio:

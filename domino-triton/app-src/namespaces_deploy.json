@@ -1,0 +1,13 @@
+{
+  "deployments": [
+    {
+      "name": "Development",
+      "namespace": "domino-inference-dev",
+      "proxy_url": "http://triton-inference-server-proxy.domino-inference-dev.svc.cluster.local:8080",
+      "grpc_url": "triton-inference-server-proxy.domino-inference-dev.svc.cluster.local:50051",
+      "admin_url": "http://triton-inference-server-admin.domino-inference-dev.svc.cluster.local:8000",
+      "model_repo_path": "/mnt/domino-inference-dev-triton-repo-pvc/models"
+    }
+  ],
+  "default": "domino-inference-dev"
+}

@@ -1,0 +1,19 @@
+# Sample texts for BERT sentiment classification testing
+# One text per line - blank lines and lines starting with # are ignored
+
+This movie was absolutely fantastic! I loved every minute of it.
+The product arrived broken and customer service was unhelpful.
+I had a wonderful experience at this restaurant. Highly recommended!
+Terrible service, rude staff, and overpriced food. Never going back.
+The hotel room was clean and the staff was friendly.
+This is the worst purchase I have ever made. Complete waste of money.
+Great quality and fast shipping. Very satisfied with my order.
+The book was boring and poorly written. Couldn't finish it.
+Amazing concert! The band sounded even better live than on the album.
+Flight was delayed for 5 hours with no explanation or compensation.
+Beautiful scenery and excellent hiking trails. Perfect weekend getaway.
+The software keeps crashing and tech support is impossible to reach.
+Delicious food and great atmosphere. Will definitely come back.
+Disappointing movie. The trailer was better than the actual film.
+Excellent customer service! They went above and beyond to help me.
+The quality is cheap and it broke after one week of use.

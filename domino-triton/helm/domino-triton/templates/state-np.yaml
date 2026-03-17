@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.env.name }}-state
+  namespace: {{ .Values.env.namespace }}
+  labels:
+    app: {{ .Values.env.name }}-state
+    type: {{ .Values.env.type }}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Values.env.name }}-state
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    # Allow proxy pods
+    - podSelector:
+        matchLabels:
+          app: {{ .Values.env.name }}-proxy
+    # Allow admin pods
+    - podSelector:
+        matchLabels:
+          app: {{ .Values.env.name }}-admin
+    ports:
+    - protocol: TCP
+      port: 6379

@@ -50,11 +50,17 @@ Domino Triton Inference Server provides a **secure, high-performance ML inferenc
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐  │
 │  │ gRPC Proxy   │    │ REST Proxy   │    │ Admin API        │  │
 │  │ :50051       │    │ :8080        │    │ :8000            │  │
+│  │  (replicas)  │    │  (replicas)  │    │                  │  │
 │  └──────┬───────┘    └──────┬───────┘    └──────────────────┘  │
 │         │                   │                                   │
 │         └─────────┬─────────┘                                   │
-│                   ▼                                             │
-│         ┌──────────────────┐                                    │
+│                   │                                             │
+│         ┌─────────▼─────────┐                                   │
+│         │   State Pod       │◄──── Shared model state (Redis)   │
+│         │   (Redis)         │      LRU, pin/cordon, access logs │
+│         └─────────┬─────────┘                                   │
+│                   │                                             │
+│         ┌─────────▼─────────┐                                   │
 │         │ NVIDIA Triton    │◄──── S3 Model Repository           │
 │         │ Inference Server │◄──── EBS HuggingFace Cache         │
 │         │ (GPU/CPU)        │                                    │
@@ -879,14 +885,16 @@ Our implementation uses Least Recently Used eviction:
 | **Auto-load** | Models load on first inference request |
 | **Idle timeout** | Configurable (default 5 min) |
 | **Pinning** | Critical models protected from eviction |
-| **Shared state** | gRPC + REST proxies share LRU state |
-| **Source of truth** | Triton server (not cache) |
+| **Shared state** | All proxy replicas share state via Redis |
+| **Source of truth** | Triton server (state synced on startup) |
+| **Fire-and-forget** | Access tracking adds no latency |
 
 ```yaml
 # Configuration
 MODEL_IDLE_TIMEOUT_SECS: 300    # 5 minutes
 MODEL_LOAD_TIMEOUT_SECS: 120    # 2 minutes max load time
 MODEL_UNLOAD_TIMEOUT_SECS: 30   # 30 seconds max unload
+REDIS_URL: redis://state:6379   # Shared state backend
 ```
 
 ---
@@ -1086,7 +1094,7 @@ python scripts/benchmarks/benchmark_llm_clients.py \
 
 ---
 
-## Appendix B: Storage Architecture
+## Appendix B: Storage & State Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1097,19 +1105,51 @@ python scripts/benchmarks/benchmark_llm_clients.py \
 │  │   ├── yolov8n/           │   └── models--*/              │
 │  │   ├── bert/              └── (HF downloads)              │
 │  │   └── whisper/                                           │
-│  └── weights/               /model-state (RAM)              │
-│      └── smollm/            └── *.json (LRU state)          │
+│  └── weights/                                               │
+│      └── smollm/                                            │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 
-Volume Characteristics:
-┌──────────────┬─────────┬───────────────┬──────────────────┐
-│ Volume       │ Type    │ Access Mode   │ Purpose          │
-├──────────────┼─────────┼───────────────┼──────────────────┤
-│ triton-repo  │ S3      │ ReadWriteMany │ Model configs    │
-│ hf-cache     │ EBS     │ ReadWriteOnce │ HF downloads     │
-│ model-state  │ emptyDir│ Ephemeral     │ LRU tracking     │
-└──────────────┴─────────┴───────────────┴──────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                   State Pod (Redis)                          │
+│                                                              │
+│  Shared model state for horizontally-scaled proxies:        │
+│                                                              │
+│  model:state:{name}  = HASH {                               │
+│    loaded, pinned, cordoned, last_access_time,              │
+│    access_count, load_time_seconds, last_accessed_by        │
+│  }                                                           │
+│                                                              │
+│  model:access_times  = SORTED SET { name -> timestamp }     │
+│                        (for LRU eviction queries)           │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+
+Volume/Service Characteristics:
+┌──────────────┬─────────┬───────────────┬────────────────────────────┐
+│ Volume       │ Type    │ Access Mode   │ Purpose                    │
+├──────────────┼─────────┼───────────────┼────────────────────────────┤
+│ triton-repo  │ S3      │ ReadWriteMany │ Model configs + weights    │
+│ hf-cache     │ EBS     │ ReadWriteOnce │ HuggingFace downloads      │
+│ state-pod    │ Redis   │ Network       │ Shared LRU state           │
+└──────────────┴─────────┴───────────────┴────────────────────────────┘
+
+Horizontal Scaling:
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│ gRPC Proxy  │  │ HTTP Proxy  │  │ Admin API   │
+│  (replica)  │  │  (replica)  │  │             │
+└──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+       │                │                │
+       └────────────────┼────────────────┘
+                        │
+              ┌─────────▼─────────┐
+              │    State Pod      │
+              │     (Redis)       │
+              │  No persistence   │
+              └───────────────────┘
+
+Design: Fire-and-forget for access tracking, blocking for cordons.
+State synced from Triton on startup (Redis is ephemeral cache).
 ```
 
 ---

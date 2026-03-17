@@ -62,14 +62,16 @@ Validate against Domino: GET /v4/auth/principal
 
 ## Model State Management
 
-The proxies maintain shared state for model lifecycle:
+The proxies maintain shared state for model lifecycle via a Redis state pod:
 
 ```python
 ModelState:
   - loaded: bool          # Currently in GPU memory
   - pinned: bool          # Protected from LRU eviction
   - cordoned: bool        # Reject new requests (maintenance)
-  - last_used: timestamp  # For LRU tracking
+  - last_access_time: float  # For LRU tracking
+  - access_count: int     # Request counter
+  - last_accessed_by: str # User tracking (audit)
 ```
 
 **Auto-load**: Models load automatically on first inference request.
@@ -78,7 +80,34 @@ ModelState:
 
 **Cordon**: Cordoned models reject new requests, allowing graceful drain before maintenance.
 
-State persists to `MODEL_STATE_DIR` (JSON files per model) and survives pod restarts.
+### Redis State Backend
+
+State is shared across proxy replicas via Redis for horizontal scaling:
+
+```
+┌─────────────┐  ┌─────────────┐
+│ gRPC Proxy  │  │ HTTP Proxy  │
+│  (replica)  │  │  (replica)  │
+└──────┬──────┘  └──────┬──────┘
+       │                │
+       └────────┬───────┘
+                │
+       ┌────────▼────────┐
+       │   State Pod     │
+       │    (Redis)      │
+       └─────────────────┘
+```
+
+**Redis Data Model:**
+- `model:state:{name}` - HASH with all model state fields
+- `model:access_times` - SORTED SET for LRU eviction queries
+
+**Fire-and-Forget**: Access tracking (`mark_accessed`) uses async fire-and-forget to avoid adding latency to inference requests.
+
+**Graceful Degradation**: When Redis is unavailable:
+- Inference continues (state falls back to defaults)
+- Cordon checks return `false` (allow requests)
+- State syncs from Triton when Redis recovers
 
 ## Triton V2 Protocol
 
@@ -127,8 +156,10 @@ output = result.as_numpy("output0")
 | `TRITON_HTTP_URL` | Triton HTTP endpoint | `http://127.0.0.1:8000` |
 | `DOMINO_HOST` | Domino platform URL | Required |
 | `SKIP_AUTH` | Disable auth (local dev) | `false` |
-| `MODEL_STATE_DIR` | Persistent state directory | `/model-state` |
+| `REDIS_URL` | Redis state backend URL | `` (local fallback) |
 | `MODEL_IDLE_TIMEOUT_SECS` | LRU eviction timeout | `300` |
+| `REDIS_CONNECTION_TIMEOUT_SECS` | Redis connection timeout | `5.0` |
+| `REDIS_OPERATION_TIMEOUT_SECS` | Redis operation timeout | `2.0` |
 
 ## Storage Layout
 
@@ -141,9 +172,12 @@ triton-repo/
 │   └── smollm-135m-python/
 │       ├── config.pbtxt
 │       └── 1/model.py
-├── weights/             # HuggingFace model weights
-│   └── smollm-135m-python/
-└── model-state/         # Persistent model state (JSON)
+└── weights/             # HuggingFace model weights
+    └── smollm-135m-python/
+
+State Pod (Redis):
+  model:state:{name}     # HASH - per-model state
+  model:access_times     # SORTED SET - LRU tracking
 ```
 
 ## Deployment

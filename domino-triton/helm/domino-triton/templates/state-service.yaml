@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.env.name }}-state
+  namespace: {{ .Values.env.namespace }}
+  labels:
+    app: {{ .Values.env.name }}-state
+    type: {{ .Values.env.type }}
+spec:
+  selector:
+    app: {{ .Values.env.name }}-state
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis

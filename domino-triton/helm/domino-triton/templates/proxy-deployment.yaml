@@ -43,8 +43,8 @@ spec:
           value: "0.0.0.0"
         - name: PROXY_GRPC_PORT
           value: "50051"
-        - name: MODEL_STATE_DIR
-          value: "/model-state"
+        - name: REDIS_URL
+          value: "redis://{{ .Values.env.name }}-state:6379"
         - name: TRITON_TIMEOUT_SECS
           value: "{{ .Values.proxy.triton_timeout_secs }}"
         - name: MODEL_LOAD_TIMEOUT_SECS
@@ -71,9 +71,6 @@ spec:
           limits:
             cpu: {{ .Values.proxy.resources.limits.cpu | default "2" | quote }}
             memory: {{ .Values.proxy.resources.limits.memory | default "2Gi" | quote }}
-        volumeMounts:
-        - mountPath: "/model-state"
-          name: model-state-vol
         livenessProbe:
           tcpSocket:
             port: 50051
@@ -111,8 +108,8 @@ spec:
           value: "0.0.0.0"
         - name: PROXY_PORT
           value: "8080"
-        - name: MODEL_STATE_DIR
-          value: "/model-state"
+        - name: REDIS_URL
+          value: "redis://{{ .Values.env.name }}-state:6379"
         - name: TRITON_TIMEOUT_SECS
           value: "{{ .Values.proxy.triton_timeout_secs }}"
         - name: MODEL_LOAD_TIMEOUT_SECS
@@ -139,9 +136,6 @@ spec:
           limits:
             cpu: {{ .Values.proxy.resources.limits.cpu | default "2" | quote }}
             memory: {{ .Values.proxy.resources.limits.memory | default "2Gi" | quote }}
-        volumeMounts:
-        - mountPath: "/model-state"
-          name: model-state-vol
         livenessProbe:
           httpGet:
             path: /v2/health/live
@@ -154,10 +148,3 @@ spec:
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
-
-      volumes:
-      # Shared model state volume (in-memory for fast access)
-      - name: model-state-vol
-        emptyDir:
-          medium: Memory
-          sizeLimit: 10Mi

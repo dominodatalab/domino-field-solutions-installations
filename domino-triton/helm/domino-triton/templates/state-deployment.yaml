@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.env.name }}-state
+  namespace: {{ .Values.env.namespace }}
+  labels:
+    app: {{ .Values.env.name }}-state
+    type: {{ .Values.env.type }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.env.name }}-state
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.env.name }}-state
+        type: {{ .Values.env.type }}
+    spec:
+      containers:
+      - name: redis
+        image: {{ .Values.state.image | default "redis:7-alpine" }}
+        args:
+          - redis-server
+          - --save ""
+          - --appendonly no
+          - --maxmemory {{ .Values.state.maxmemory | default "128mb" }}
+          - --maxmemory-policy noeviction
+        ports:
+        - containerPort: 6379
+          name: redis
+        resources:
+          requests:
+            cpu: {{ .Values.state.resources.requests.cpu | default "100m" | quote }}
+            memory: {{ .Values.state.resources.requests.memory | default "128Mi" | quote }}
+          limits:
+            cpu: {{ .Values.state.resources.limits.cpu | default "500m" | quote }}
+            memory: {{ .Values.state.resources.limits.memory | default "256Mi" | quote }}
+        livenessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        securityContext:
+          runAsUser: 999
+          runAsGroup: 999
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL

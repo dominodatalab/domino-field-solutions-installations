@@ -21,6 +21,9 @@ tritonclient[grpc]>=2.40.0
 numpy>=1.24.0
 pydantic>=2.5.0
 
+# Redis (for shared state across proxy replicas)
+redis>=5.0.0
+
 # Dashboard (HTML templates)
 jinja2>=3.1.0
 python-multipart>=0.0.6

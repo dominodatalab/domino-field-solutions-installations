@@ -9,12 +9,12 @@
       "model_repo_path": "/mnt/domino-inference-dev-triton-repo-pvc/models"
     },
     {
-      "name": "Staging",
-      "namespace": "domino-inference-staging",
-      "proxy_url": "http://triton-inference-server-proxy.domino-inference-staging.svc.cluster.local:8080",
-      "grpc_url": "triton-inference-server-proxy.domino-inference-staging.svc.cluster.local:50051",
-      "admin_url": "http://triton-inference-server-admin.domino-inference-staging.svc.cluster.local:8000",
-      "model_repo_path": "/mnt/domino-inference-staging-triton-repo-pvc/models"
+      "name": "Test",
+      "namespace": "domino-inference-test",
+      "proxy_url": "http://triton-inference-server-proxy.domino-inference-test.svc.cluster.local:8080",
+      "grpc_url": "triton-inference-server-proxy.domino-inference-test.svc.cluster.local:50051",
+      "admin_url": "http://triton-inference-server-admin.domino-inference-test.svc.cluster.local:8000",
+      "model_repo_path": "/mnt/domino-inference-test-triton-repo-pvc/models"
     },
     {
       "name": "Production",

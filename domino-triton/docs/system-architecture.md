@@ -32,8 +32,9 @@ This document describes the architecture of the Domino-native Triton Inference S
     │                           │        └───────┬────────┘           │                           │
     │                           │                │                    │                           │
     │                           │        ┌───────▼────────┐           │                           │
-    │                           │        │  Shared State  │           │                           │
-    │                           │        │  (Model Mgmt)  │           │                           │
+    │                           │        │  State Pod     │           │                           │
+    │                           │        │  (Redis)       │           │                           │
+    │                           │        │  LRU, Pin/Cord │           │                           │
     │                           │        └────────────────┘           │                           │
     │                           └─────────────────────────────────────┘                           │
     │                                                                                              │
@@ -75,6 +76,7 @@ This document describes the architecture of the Domino-native Triton Inference S
 |-----------|------|----------------|
 | **HTTP Proxy** | 8080 | REST API auth, model management, Triton V2 protocol |
 | **gRPC Proxy** | 50051 | gRPC auth, streaming inference, Triton protocol |
+| **State Pod** | 6379 | Shared model state (Redis) for horizontal scaling |
 | **Triton Server** | 8000/8001 | ML inference engine (isolated from external access) |
 | **Domino Auth** | Platform | API key validation, user identity |
 
@@ -260,7 +262,7 @@ Key Benefits:
 │   │ (unused)   (unused)   (active)   (unused)                       │     │
 │   └─────────────────────────────────────────────────────────────────┘     │
 │                                                                            │
-│   With Proxy (Dynamic LRU):                                                │
+│   With Proxy (Dynamic LRU via Redis State):                                │
 │   ┌─────────────────────────────────────────────────────────────────┐     │
 │   │ GPU Memory                                                       │     │
 │   │ ████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ │     │
@@ -273,6 +275,8 @@ Key Benefits:
 │   • LRU Eviction: Idle models (default 5 min) automatically unloaded      │
 │   • Pinning: Critical models protected from eviction                      │
 │   • Cordoning: Graceful drain for maintenance                             │
+│   • Horizontal Scaling: State shared via Redis across proxy replicas      │
+│   • Fire-and-Forget: Access tracking adds no inference latency            │
 │                                                                            │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -291,21 +295,33 @@ Key Benefits:
 │   ┌─────────────────────────────────────────────────────────────────────┐  │
 │   │ Service: triton-proxy (LoadBalancer/ClusterIP)                      │  │
 │   │ Ports: 8080 (HTTP), 50051 (gRPC)                                    │  │
+│   └───────────────────────────────────┬─────────────────────────────────┘  │
+│                                       │                                    │
+│   ┌───────────────────────────────────▼─────────────────────────────────┐  │
+│   │ Deployment: proxy (replicas: N)                                     │  │
+│   │ ┌─────────────┐ ┌─────────────┐                                     │  │
+│   │ │ http-proxy  │ │ grpc-proxy  │  ◄── Horizontally scalable         │  │
+│   │ │  container  │ │  container  │                                     │  │
+│   │ └──────┬──────┘ └──────┬──────┘                                     │  │
+│   │        │               │                                            │  │
+│   │        └───────┬───────┘                                            │  │
+│   │                │                                                    │  │
+│   │        ┌───────▼───────┐                                            │  │
+│   │        │  State Pod    │                                            │  │
+│   │        │  (Redis)      │  ◄── Shared state backend                  │  │
+│   │        └───────┬───────┘                                            │  │
+│   │                │                                                    │  │
+│   │        ┌───────▼───────┐                                            │  │
+│   │        │    Triton     │                                            │  │
+│   │        │    Server     │  ◄── ML inference engine                   │  │
+│   │        └───────────────┘                                            │  │
 │   └─────────────────────────────────────────────────────────────────────┘  │
-│                                    │                                       │
-│                                    ▼                                       │
-│   ┌─────────────────────────────────────────────────────────────────────┐  │
-│   │ Pod: triton-deployment                                              │  │
-│   │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐    │  │
-│   │ │ http-proxy  │ │ grpc-proxy  │ │   triton    │ │   admin     │    │  │
-│   │ │  container  │ │  container  │ │  container  │ │  container  │    │  │
-│   │ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘    │  │
-│   │                                                                     │  │
-│   │ Volumes:                                                            │  │
-│   │ • model-repository (PVC) - Triton models                           │  │
-│   │ • model-state (PVC) - Persistent proxy state                       │  │
-│   │ • model-weights (PVC) - HuggingFace weights                        │  │
-│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                            │
+│   Volumes:                                                                 │
+│   • model-repository (S3/PVC) - Triton model configs                      │
+│   • model-weights (S3/PVC) - HuggingFace weights                          │
+│                                                                            │
+│   State Pod: Redis with no persistence (syncs from Triton on startup)     │
 │                                                                            │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -361,9 +377,10 @@ result = client.infer(
 | **User Tracking** | Not available | Full audit trail per user |
 | **Model Loading** | Manual or all-at-once | Automatic on-demand |
 | **GPU Efficiency** | Static allocation | Dynamic LRU management |
+| **Horizontal Scaling** | Single instance | Multi-replica via Redis state |
 | **Protocol Support** | Triton native only | Extensible via proxy |
 | **Upgrades** | Breaking changes | Proxy abstracts changes |
 | **Security** | Direct exposure | Isolated behind proxy |
 | **Observability** | Limited | Centralized at proxy |
 
-The proxy-based architecture transforms Triton from a standalone inference engine into a fully integrated, Domino-native service with enterprise-grade authentication, intelligent resource management, and operational flexibility.
+The proxy-based architecture transforms Triton from a standalone inference engine into a fully integrated, Domino-native service with enterprise-grade authentication, intelligent resource management, horizontal scaling, and operational flexibility.

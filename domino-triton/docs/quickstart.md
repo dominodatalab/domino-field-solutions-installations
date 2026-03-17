@@ -65,6 +65,7 @@ git clone https://github.com/dominodatalab/domino-field-solutions-installations.
 cp -r domino-field-solutions-installations/domino-triton/app-src /mnt/
 cp -r domino-field-solutions-installations/domino-triton/docker /mnt/
 cp -r domino-field-solutions-installations/domino-triton/docs /mnt/
+cp -r domino-field-solutions-installations/domino-triton/samples /mnt/
 cp -r domino-field-solutions-installations/domino-triton/scripts /mnt/
 cp -r domino-field-solutions-installations/domino-triton/notebooks /mnt/
 cp -r domino-field-solutions-installations/domino-triton/triton-repo-reference /mnt/
@@ -146,6 +147,132 @@ Each notebook includes:
 - Sample inference with visualization
 - Performance benchmarking
 - Error handling examples
+
+---
+
+## Step 9: Run Benchmarks (Optional)
+
+Run comprehensive benchmarks on all models using the sequential test script:
+
+```bash
+export ENV=dev
+export NAMESPACE=domino-inference-${ENV}
+export TRITON_GRPC_URL="triton-inference-server-proxy.${NAMESPACE}.svc.cluster.local:50051"
+export TRITON_REST_URL="http://triton-inference-server-proxy.${NAMESPACE}.svc.cluster.local:8080"
+# Run all models with benchmarks
+python scripts/testing/test_models_sequential.py
+
+# If models are already on EDV (skip copy step)
+python scripts/testing/test_models_sequential.py --skip-copy
+
+# Test specific models only
+python scripts/testing/test_models_sequential.py --models bert-base-uncased yolov8n
+
+# List available models
+python scripts/testing/test_models_sequential.py --list
+```
+
+The script will:
+- Load each model sequentially (to avoid GPU memory issues)
+- Run inference tests
+- Execute benchmarks and record results
+- Unload models after testing
+
+Results are saved to the `results/` directory.
+
+---
+
+## Step 10: Save Benchmarks to Domino Dataset (Optional)
+
+Copy benchmark results to a Domino dataset for persistence and sharing:
+
+```bash
+# Create benchmarks folder in Domino dataset
+mkdir -p /domino/datasets/local/${DOMINO_PROJECT_NAME}/benchmarks
+
+# Copy benchmark results for all four models
+cp -r results/yolov8/benchmark/*.md /domino/datasets/local/${DOMINO_PROJECT_NAME}/benchmarks/
+cp -r results/bert/benchmark/*.md /domino/datasets/local/${DOMINO_PROJECT_NAME}/benchmarks/
+cp -r results/whisper/benchmark/*.md /domino/datasets/local/${DOMINO_PROJECT_NAME}/benchmarks/
+cp -r results/llm/benchmark/*.md /domino/datasets/local/${DOMINO_PROJECT_NAME}/benchmarks/
+```
+
+> **Note**: `DOMINO_PROJECT_NAME` is automatically set by Domino in your workspace environment.
+
+---
+
+## Step 11: Start the Triton Dashboard
+
+Launch the Triton Admin Dashboard as a Domino App to monitor and manage your inference server.
+
+### Pre-requisites
+
+1. #### Install mutation
+```shell
+kubectl -n domino-platform apply -f app-src/mutation.yaml
+```
+2. #### Turn on Deep Linking
+
+- Set the feature flag `SecureIdentityPropagationToAppsEnabled` to `true`
+- Set the central config `ShortLived.iFrameRequired` to `false` (Restart nucleus services)
+
+
+### Create App Environment
+
+Create a Environment to start the app below. This is the Dockerfile for it (Based it on the Domino Standard Env)
+
+```Dockerfile
+RUN pip install --no-cache-dir \                                                                                                                                                                                                 
+      fastapi>=0.104.0 \                                                                                                                                                                                                           
+      "uvicorn[standard]>=0.24.0" \                                                                                                                                                                                                
+      httpx>=0.25.0 \                                                                                                                                                                                                              
+      jinja2>=3.1.0 \                                                                                                                                                                                                              
+      pydantic>=2.5.0 \                                                                                                                                                                                                            
+      python-multipart>=0.0.6 \                                                                                                                                                                                                    
+      "numpy>=1.24.0,<2" \                                                                                                                                                                                                         
+      "tritonclient[all]>=2.40.0" \                                                                                                                                                                                                
+      transformers>=4.30.0 \                                                                                                                                                                                                       
+      opencv-python-headless>=4.8.0 \                                                                                                                                                                                              
+      librosa>=0.10.0 \                                                                                                                                                                                                            
+      soundfile>=0.12.0 \                                                                                                                                                                                                          
+      grpcio==1.67.1 \                                                                                                                                                                                                             
+      grpcio-tools==1.67.1 \                                                                                                                                                                                                       
+      protobuf==5.28.3 \                                                                                                                                                                                                           
+      requests>=2.28.0 \                                                                                                                                                                                                           
+      torch>=2.0.0 \                                                                                                                                                                                                               
+      onnx>=1.14.0 \                                                                                                                                                                                                               
+      onnxruntime>=1.15.0 \                                                                                                                                                                                                        
+      onnxscript>=0.1.0 \                                                                                                                                                                                                          
+      ultralytics>=8.0.0 \                                                                                                                                                                                                         
+      "optimum[onnxruntime]>=1.12.0" \                                                                                                                                                                                             
+      huggingface_hub>=0.16.0         
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \                                                                                                                                                               
+      ffmpeg \                                                                                                                                                                                                                     
+      && rm -rf /var/lib/apt/lists/* 
+```
+
+
+<!-- TODO: Add environment setup instructions -->
+
+### Deploy App
+
+1. Navigate to your Domino project
+2. Go to **App** > **New App** (or **Publish** > **App**)
+3. Configure the app:
+   - **Title**: `Triton Dashboard`
+   - **Custom URL**: `triton-dashboard`
+   - **Script**: `app-src/start_dfs_based.sh`
+4. Click **Publish**
+
+The dashboard provides:
+- Model status and health monitoring
+- Load/unload model controls
+- Inference testing interface
+- Benchmark results viewer
+- Real-time metrics
+
+Once published, access the dashboard at your custom URL (e.g., `https://<domino-host>/triton-dashboard`).
 
 ---
 
