@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PPTX Generator</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #1E1E2E; color: #E2E8F0; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+  .card { background: #16213E; border: 1px solid #7C3AED; border-radius: 16px; padding: 2rem; max-width: 600px; width: 90%; }
+  h1 { margin: 0 0 4px; font-size: 20px; color: #fff; }
+  p.sub { margin: 0 0 1rem; font-size: 13px; color: #06B6D4; }
+  .slides { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 1.5rem; }
+  .slide-item { background: #0D1B2A; border: 1px solid #1e3a5f; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #CBD5E1; }
+  .num { background: #7C3AED; color: #fff; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
+  button { width: 100%; padding: 0.85rem; border-radius: 10px; background: linear-gradient(135deg, #7C3AED, #06B6D4); color: #fff; font-weight: 700; font-size: 15px; border: none; cursor: pointer; }
+  button:disabled { background: #4C1D95; cursor: not-allowed; opacity: 0.7; }
+  #status { text-align: center; margin-top: 12px; font-size: 13px; min-height: 20px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>☁️ Cloud Identity Management for Domino</h1>
+  <p class="sub">PPTX Presentation Generator — 10 Slides</p>
+  <div class="slides">
+    <div class="slide-item"><span class="num">1</span> Title Slide</div>
+    <div class="slide-item"><span class="num">2</span> How IRSA Works</div>
+    <div class="slide-item"><span class="num">3</span> IRSA Key Components</div>
+    <div class="slide-item"><span class="num">4</span> The Problem for Domino</div>
+    <div class="slide-item"><span class="num">5</span> Keycloak User-to-Role</div>
+    <div class="slide-item"><span class="num">6</span> IaC: Group Spec & CLI</div>
+    <div class="slide-item"><span class="num">7</span> The Mutation Webhook</div>
+    <div class="slide-item"><span class="num">8</span> Admin Service Security</div>
+    <div class="slide-item"><span class="num">9</span> Architecture Summary</div>
+    <div class="slide-item"><span class="num">10</span> Key Takeaways</div>
+  </div>
+  <button id="btn" onclick="generate()" disabled>⏳ Loading library...</button>
+  <div id="status" style="color:#94A3B8">Loading PptxGenJS from unpkg...</div>
+</div>
+
+<script>
+  var s = document.createElement("script");
+  s.src = "https://unpkg.com/pptxgenjs@3.12.0/dist/pptxgen.bundle.js";
+  s.onload = function() {
+    document.getElementById("btn").disabled = false;
+    document.getElementById("btn").textContent = "⬇️ Generate & Download PPTX";
+    document.getElementById("status").style.color = "#22C55E";
+    document.getElementById("status").textContent = "✓ Ready!";
+    setTimeout(() => { document.getElementById("status").textContent = ""; }, 2000);
+  };
+  s.onerror = function() {
+    document.getElementById("status").style.color = "#EF4444";
+    document.getElementById("status").textContent = "❌ Failed to load. Try the jsDelivr version below.";
+    // fallback to jsDelivr
+    var s2 = document.createElement("script");
+    s2.src = "https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js";
+    s2.onload = function() {
+      document.getElementById("btn").disabled = false;
+      document.getElementById("btn").textContent = "⬇️ Generate & Download PPTX";
+      document.getElementById("status").style.color = "#22C55E";
+      document.getElementById("status").textContent = "✓ Ready (jsDelivr fallback)!";
+    };
+    s2.onerror = function() {
+      document.getElementById("status").style.color = "#EF4444";
+      document.getElementById("status").textContent = "❌ All CDNs failed. Check your internet connection.";
+    };
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s);
+
+function generate() {
+  var btn = document.getElementById("btn");
+  var status = document.getElementById("status");
+  btn.disabled = true;
+  btn.textContent = "⏳ Generating...";
+  status.style.color = "#22C55E";
+  status.textContent = "";
+
+  setTimeout(() => {
+    try {
+      const pptx = new PptxGenJS();
+      pptx.layout = "LAYOUT_WIDE";
+
+      const T = {
+        bg:"1E1E2E",accent:"7C3AED",accent2:"06B6D4",
+        white:"FFFFFF",light:"E2E8F0",muted:"94A3B8",
+        green:"22C55E",red:"EF4444",codeBg:"0F0F1A",
+        dark1:"16213E",dark2:"0D1B2A",dark3:"0F2D1A",dark4:"2D1515",
+      };
+
+      function addHeader(s,title,subtitle){
+        s.background={color:T.bg};
+        s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:"100%",h:0.08,fill:{color:T.accent}});
+        s.addText(title,{x:0.4,y:0.15,w:12,h:0.65,fontSize:24,bold:true,color:T.white,fontFace:"Calibri"});
+        s.addText(subtitle,{x:0.4,y:0.78,w:12,h:0.35,fontSize:13,color:T.accent2,fontFace:"Calibri"});
+        s.addShape(pptx.ShapeType.rect,{x:0.4,y:1.12,w:12.3,h:0.03,fill:{color:T.accent}});
+      }
+      function addPN(s,n,tot){
+        s.addText(n+" / "+tot,{x:11.8,y:7.1,w:1.2,h:0.25,fontSize:8,color:T.muted,align:"right",fontFace:"Calibri"});
+      }
+      function bRows(bullets){
+        return bullets.map(b=>({
+          text:(b.l===1?"      •  ":"▸  ")+b.t,
+          options:{fontSize:b.l===0?13:11.5,bold:b.l===0,color:b.l===0?T.white:T.light,bullet:false,paraSpaceBefore:b.l===0?8:2}
+        }));
+      }
+      const TOT=10;
+
+      // Slide 1
+      {const s=pptx.addSlide();
+      s.background={color:T.bg};
+      s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:"100%",h:0.08,fill:{color:T.accent}});
+      s.addText("Cloud Identity Management for Domino",{x:0.5,y:1.8,w:12,h:1.2,fontSize:36,bold:true,color:T.white,align:"center",fontFace:"Calibri"});
+      s.addShape(pptx.ShapeType.rect,{x:4.5,y:3.1,w:4.2,h:0.06,fill:{color:T.accent2}});
+      s.addText("IRSA Integration Architecture & Implementation",{x:0.5,y:3.3,w:12,h:0.6,fontSize:18,color:T.accent2,align:"center",fontFace:"Calibri"});
+      s.addText("Cloud Identity Management",{x:0.5,y:6.2,w:12,h:0.4,fontSize:11,color:T.muted,align:"center",fontFace:"Calibri"});
+      addPN(s,1,TOT);}
+
+      // Slide 2
+      {const s=pptx.addSlide();
+      addHeader(s,"How IRSA Works","EKS OIDC Infrastructure");
+      s.addText(bRows([
+        {l:0,t:"EKS OIDC Provider"},
+        {l:1,t:"URL: oidc.eks.{region}.amazonaws.com/id/{cluster-id}"},
+        {l:1,t:"Publishes /.well-known/openid-configuration and JWKS endpoint"},
+        {l:1,t:"Registered with AWS IAM as a trusted identity provider"},
+        {l:0,t:"Kube API Server"},
+        {l:1,t:"Configured with --service-account-issuer (OIDC URL)"},
+        {l:1,t:"Issues JWTs via Projected ServiceAccount Token Volume"},
+        {l:1,t:"Tokens contain: iss, sub, aud claims"},
+        {l:0,t:"Pod Identity Webhook (EKS Managed)"},
+        {l:1,t:"Mounts Projected ServiceAccount Token Volume into pod"},
+        {l:1,t:"Sets AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE env vars"},
+        {l:1,t:"AWS SDKs automatically call STS AssumeRoleWithWebIdentity"},
+      ]),{x:0.4,y:1.2,w:12,h:5.6,fontFace:"Calibri",valign:"top"});
+      addPN(s,2,TOT);}
+
+      // Slide 3
+      {const s=pptx.addSlide();
+      addHeader(s,"IRSA Flow: Key Components","Pod → Token → STS → IAM Role");
+      const rows=[
+        [{text:"Component",options:{bold:true,color:T.white,fill:{color:T.accent},fontSize:12,align:"center"}},
+         {text:"Purpose",  options:{bold:true,color:T.white,fill:{color:T.accent},fontSize:12,align:"center"}}],
+        ...[ ["EKS OIDC Provider","Issues signed JWTs, registered with AWS IAM as trusted identity provider"],
+             ["Kube API Server","Configured to issue tokens with OIDC-compatible claims"],
+             ["Projected SA Token","Short-lived JWT mounted into pod, auto-refreshed by kubelet"],
+             ["Pod Identity Webhook","Mutates pods to mount token volume and set AWS env vars"],
+             ["IAM Trust Policy","Validates JWT sub claim matches allowed ServiceAccount"],
+        ].map(([a,b],i)=>[
+          {text:a,options:{color:T.accent2,fill:{color:i%2===0?"16213E":"0D1B2A"},fontSize:11,bold:true}},
+          {text:b,options:{color:T.light,  fill:{color:i%2===0?"16213E":"0D1B2A"},fontSize:11}},
+        ])
+      ];
+      s.addTable(rows,{x:0.4,y:1.25,w:12.3,colW:[3.2,9.1],border:{color:T.accent,pt:0.5},fontFace:"Calibri"});
+      addPN(s,3,TOT);}
+
+      // Slide 4
+      {const s=pptx.addSlide();
+      addHeader(s,"The Problem for Domino","Dynamic ServiceAccounts vs. Static IAM Trust Policies");
+      s.addText(bRows([
+        {l:0,t:"All IRSA infrastructure is already in place on EKS"},
+        {l:1,t:"OIDC provider, webhook, and token projection are built-in"},
+        {l:0,t:"The core challenge: IRSA binds roles to ServiceAccount names"},
+        {l:1,t:"Domino dynamically generates SA names per execution (e.g. run-12345-abcde)"},
+        {l:1,t:"IAM trust policies require exact SA name matching"},
+        {l:1,t:"Would need constant trust policy updates — impossible to maintain"},
+        {l:0,t:"Our Goal"},
+        {l:1,t:"Leverage existing EKS IRSA machinery with minimum Domino interventions"},
+        {l:1,t:"Just one mutation: swap the SA name to a stable, username-based SA"},
+      ]),{x:0.4,y:1.2,w:12,h:5.6,fontFace:"Calibri",valign:"top"});
+      addPN(s,4,TOT);}
+
+      // Slide 5
+      {const s=pptx.addSlide();
+      addHeader(s,"Keycloak-Based User-to-Role Mapping","Keycloak Groups as the Source of Truth");
+      s.addText(bRows([
+        {l:0,t:"Challenge: Map Domino users to AWS IAM roles with dynamic SAs"},
+        {l:1,t:"ServiceAccounts are dynamically created per execution"},
+        {l:1,t:"User identity must persist across sessions"},
+        {l:0,t:"Solution: Keycloak groups encode IAM role assignments"},
+        {l:1,t:"Groups in path /irsa-mappings/<role-arn> hold members"},
+        {l:1,t:"User JWT contains group memberships — no external deps needed"},
+        {l:0,t:"JWT payload example (groups field)"},
+        {l:1,t:"/irsa-mappings/arn:aws:iam::123456789:role/data-scientist-role"},
+        {l:1,t:"/irsa-mappings/arn:aws:iam::123456789:role/ml-engineer-role"},
+        {l:0,t:"Benefits"},
+        {l:1,t:"Manageable without AWS console access"},
+        {l:1,t:"IaC compatible — version-controlled via kc_apply_group_spec.py"},
+      ]),{x:0.4,y:1.2,w:12,h:5.6,fontFace:"Calibri",valign:"top"});
+      addPN(s,5,TOT);}
+
+      // Slide 6
+      {const s=pptx.addSlide();
+      addHeader(s,"IaC: Group Spec & CLI","Version-Controlled, Auditable Configuration");
+      s.addText("Group Specification (groups.json)",{x:0.4,y:1.25,w:12,h:0.35,fontSize:12,bold:true,color:T.accent2,fontFace:"Calibri"});
+      s.addShape(pptx.ShapeType.rect,{x:0.4,y:1.63,w:12.3,h:1.9,fill:{color:T.codeBg},line:{color:T.accent,width:1}});
+      s.addText('{\n  "root_group": "/irsa-mappings",\n  "groups": [\n    { "name": "arn:aws:iam::123456789:role/data-scientist-role", "members": ["alice","bob"] },\n    { "name": "arn:aws:iam::123456789:role/ml-engineer-role", "members": ["charlie","alice"] }\n  ]\n}',
+        {x:0.55,y:1.67,w:12,h:1.82,fontSize:9,color:T.accent2,fontFace:"Courier New",valign:"top"});
+      s.addText("CLI Usage (sync.py)",{x:0.4,y:3.65,w:12,h:0.35,fontSize:12,bold:true,color:T.accent2,fontFace:"Calibri"});
+      s.addShape(pptx.ShapeType.rect,{x:0.4,y:4.03,w:12.3,h:2.6,fill:{color:T.codeBg},line:{color:T.accent,width:1}});
+      s.addText("# Apply Keycloak group spec\npython kc_apply_group_spec.py --spec groups.json --dry-run\npython kc_apply_group_spec.py --spec groups.json\n\n# Sync users to K8s ServiceAccounts\npython sync.py users --default-aws-role-arn $ROLE --dry-run\npython sync.py users --default-aws-role-arn $ROLE\n\n# Sync Keycloak groups to IAM trust policies\npython sync.py irsa --dry-run\npython sync.py irsa",
+        {x:0.55,y:4.07,w:12,h:2.52,fontSize:9,color:T.accent2,fontFace:"Courier New",valign:"top"});
+      addPN(s,6,TOT);}
+
+      // Slide 7
+      {const s=pptx.addSlide();
+      addHeader(s,"The Mutation Webhook","Dynamic → Fixed Username-Based ServiceAccounts");
+      s.addShape(pptx.ShapeType.rect,{x:0.4,y:1.25,w:5.8,h:3.4,fill:{color:T.dark4},line:{color:T.red,width:1.5}});
+      s.addText("Before (Dynamic)",{x:0.5,y:1.3,w:5.6,h:0.4,fontSize:13,bold:true,color:T.red,align:"center",fontFace:"Calibri"});
+      ["SA Name: run-12345-abcde","Trust Policy: Must update per run","IAM Binding: Impossible to maintain",'Audit: "Which user was run-12345?"']
+        .forEach((t,i)=>s.addText("•  "+t,{x:0.6,y:1.82+i*0.58,w:5.4,h:0.5,fontSize:11,color:"FCA5A5",fontFace:"Calibri"}));
+      s.addText("→",{x:6.3,y:2.65,w:0.6,h:0.5,fontSize:28,color:T.accent2,align:"center",bold:true});
+      s.addShape(pptx.ShapeType.rect,{x:7.0,y:1.25,w:5.8,h:3.4,fill:{color:T.dark3},line:{color:T.green,width:1.5}});
+      s.addText("After (Username-Based)",{x:7.1,y:1.3,w:5.6,h:0.4,fontSize:13,bold:true,color:T.green,align:"center",fontFace:"Calibri"});
+      ["SA Name: alice","Trust Policy: Fixed — sub: ...alice","IAM Binding: Stable, user-centric",'Audit: Clear — "alice"']
+        .forEach((t,i)=>s.addText("•  "+t,{x:7.2,y:1.82+i*0.58,w:5.4,h:0.5,fontSize:11,color:"86EFAC",fontFace:"Calibri"}));
+      s.addShape(pptx.ShapeType.rect,{x:0.4,y:4.8,w:12.3,h:0.85,fill:{color:"1E1B4B"},line:{color:T.accent,width:1}});
+      s.addText('The sub claim never changes for user alice regardless of executions. Trust policy: "sub": "system:serviceaccount:*:alice"',
+        {x:0.6,y:4.84,w:12,h:0.77,fontSize:10,color:T.light,fontFace:"Calibri",valign:"middle"});
+      addPN(s,7,TOT);}
+
+      // Slide 8
+      {const s=pptx.addSlide();
+      addHeader(s,"Admin Service: Security Model","domino-irsa-lite-admin — Strict Safety Controls");
+      const rows=[
+        [{text:"Action",options:{bold:true,color:T.white,fill:{color:T.accent},fontSize:11,align:"center"}},
+         {text:"Allowed?",options:{bold:true,color:T.white,fill:{color:T.accent},fontSize:11,align:"center"}},
+         {text:"Reason",options:{bold:true,color:T.white,fill:{color:T.accent},fontSize:11,align:"center"}}],
+        ...[
+          ["Modify sub claim for matching OIDC provider","YES","Core functionality"],
+          ["Modify roles with different OIDC provider URL","NO","Could affect other clusters"],
+          ["Change the OIDC provider in trust policy","NO","Could redirect trust"],
+          ["Change the audience claim","NO","Could weaken security"],
+          ["Add new Statement blocks","NO","Only modifies existing sub"],
+          ["Modify IAM policies (permissions)","NO","Only touches trust policies"],
+        ].map(([a,b,c],i)=>[
+          {text:a,options:{color:T.light, fill:{color:i%2===0?"16213E":"0D1B2A"},fontSize:10.5}},
+          {text:b,options:{color:b==="YES"?T.green:T.red,fill:{color:i%2===0?"16213E":"0D1B2A"},fontSize:10.5,align:"center",bold:true}},
+          {text:c,options:{color:T.muted, fill:{color:i%2===0?"16213E":"0D1B2A"},fontSize:10.5}},
+        ])
+      ];
+      s.addTable(rows,{x:0.4,y:1.25,w:12.3,colW:[5.2,1.8,5.3],border:{color:T.accent,pt:0.5},fontFace:"Calibri"});
+      addPN(s,8,TOT);}
+
+      // Slide 9
+      {const s=pptx.addSlide();
+      addHeader(s,"Architecture Summary","End-to-End Integration");
+      s.addText(bRows([
+        {l:0,t:"Three core integrations: Keycloak ↔ K8s API (SAs) ↔ AWS IAM (Roles)"},
+        {l:0,t:"Admin Service (FastAPI) — Central orchestration layer"},
+        {l:1,t:"POST /k8s/users/sync — Create/update user ServiceAccounts"},
+        {l:1,t:"POST /iam/irsa/sync — Sync trust policies"},
+        {l:1,t:"GET /keycloak/groups — List group memberships"},
+        {l:1,t:"POST /keycloak/groups/member — Add/remove user from group"},
+        {l:0,t:"Three client interfaces"},
+        {l:1,t:"CLI (sync.py) — with --dry-run support"},
+        {l:1,t:"Streamlit UI (app.py) — Visual admin interface"},
+        {l:1,t:"Mutation Webhook — Swaps SA name at pod creation"},
+        {l:0,t:"Admin service uses IRSA itself — bootstrapped with its own IRSA role"},
+      ]),{x:0.4,y:1.2,w:12,h:5.6,fontFace:"Calibri",valign:"top"});
+      addPN(s,9,TOT);}
+
+      // Slide 10
+      {const s=pptx.addSlide();
+      addHeader(s,"Key Takeaways","Summary");
+      [
+        ["1","IRSA binds IAM roles to ServiceAccount names — Domino uses dynamic SA names"],
+        ["2","Keycloak groups as source of truth — User-to-role mappings stored in Keycloak, accessible via JWT"],
+        ["3","Username-based ServiceAccounts — Mutation webhook swaps dynamic SAs for persistent user SAs"],
+        ["4","IaC from inside Domino — kc_apply_group_spec.py + CLI + UI with --dry-run support"],
+        ["5","All config derives from JWT — No external credentials needed inside workspace"],
+        ["6","Admin service uses IRSA itself — Bootstrapped with its own IRSA role to manage trust policies"],
+        ["7","Strict safety controls — Only modifies sub claim when OIDC provider and audience match"],
+      ].forEach(([num,text],i)=>{
+        s.addShape(pptx.ShapeType.rect,{x:0.4,y:1.25+i*0.75,w:0.42,h:0.42,fill:{color:T.accent},line:{color:T.accent}});
+        s.addText(num,{x:0.4,y:1.25+i*0.75,w:0.42,h:0.42,fontSize:12,bold:true,color:T.white,align:"center",valign:"middle",fontFace:"Calibri"});
+        s.addText(text,{x:0.95,y:1.28+i*0.75,w:11.7,h:0.38,fontSize:11.5,color:T.light,fontFace:"Calibri",valign:"middle"});
+      });
+      addPN(s,10,TOT);}
+
+      pptx.writeFile({fileName:"Cloud_Identity_Management_for_Domino.pptx"});
+      btn.disabled=false;
+      btn.textContent="✅ Done! Click to regenerate";
+      status.textContent="✓ Download started — check your Downloads folder";
+    } catch(e) {
+      btn.disabled=false;
+      btn.textContent="⬇️ Generate & Download PPTX";
+      status.style.color="#EF4444";
+      status.textContent="Error: "+e.message;
+    }
+  },100);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IRSA Admin - Documentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #818cf8;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-500: #6b7280;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-800);
+            line-height: 1.7;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: linear-gradient(135deg, var(--gray-900) 0%, var(--gray-800) 100%);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            z-index: 100;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .header a {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+            color: white;
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .back-link {
+            margin-left: auto;
+            color: var(--gray-300);
+            font-size: 0.9rem;
+        }
+
+        .back-link:hover {
+            color: white;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 96px 24px 48px;
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 8px;
+            padding-bottom: 16px;
+            border-bottom: 3px solid var(--primary);
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-top: 48px;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        h3 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--gray-800);
+            margin-top: 32px;
+            margin-bottom: 12px;
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: var(--gray-700);
+        }
+
+        strong {
+            color: var(--gray-900);
+        }
+
+        ul, ol {
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 8px;
+            color: var(--gray-700);
+        }
+
+        code {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.85em;
+            background: var(--gray-100);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--primary);
+        }
+
+        pre {
+            background: var(--gray-900);
+            color: #e5e7eb;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        .note {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 20px;
+        }
+
+        .note strong {
+            color: #92400e;
+        }
+
+        .warning {
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 20px;
+        }
+
+        .warning strong {
+            color: #991b1b;
+        }
+
+        .toc {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+
+        .toc h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            border-bottom: none;
+            padding-bottom: 0;
+            margin-bottom: 16px;
+        }
+
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .toc li {
+            margin-bottom: 8px;
+        }
+
+        .toc a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 24px;
+            border: 1px solid var(--gray-100);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .section h2:first-child {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <a href="./">
+            <div class="logo-icon">IR</div>
+            <span class="logo-text">IRSA Admin</span>
+        </a>
+        <a href="./" class="back-link">&larr; Back to Dashboard</a>
+    </header>
+
+    <div class="container">
+        <h1>Installation & Configuration Runbook</h1>
+
+        <div class="toc">
+            <h2>Table of Contents</h2>
+            <ul>
+                <li><a href="#prerequisites">External Prerequisites</a></li>
+                <li><a href="#installation">Installation Prerequisites</a></li>
+                <li><a href="#helm">Helm Installation</a></li>
+                <li><a href="#keycloak">Configure User Groups</a></li>
+                <li><a href="#irsa">IRSA Configuration</a></li>
+                <li><a href="#sync">Sync Commands</a></li>
+                <li><a href="#summary">Summary</a></li>
+            </ul>
+        </div>
+
+        <div class="section" id="prerequisites">
+            <h2>External Prerequisites</h2>
+
+            <h3>Move the following images into your private registry</h3>
+            <ol>
+                <li><code>quay.io/domino/domino-kc-groups-based-irsa-mapper:prod-v1</code></li>
+                <li><code>quay.io/domino/cloud-identity-management-utils:prod-v1</code></li>
+            </ol>
+
+            <h3>Create an IAM Role for the admin service</h3>
+            <p>The service which manages your IRSA mappings needs an IAM role with permissions to update trust policies. Add the following policy:</p>
+
+            <div class="note">
+                <strong>Note:</strong> Update the account ID and role pattern as needed.
+            </div>
+
+            <pre><code>{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:UpdateAssumeRolePolicy",
+                "iam:GetRole"
+            ],
+            "Resource": "arn:aws:iam::11111111111:role/acme_domino_*"
+        }
+    ]
+}</code></pre>
+
+            <p>Add the following trust policy to allow the service account to assume this role:</p>
+
+            <pre><code>{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "arn:aws:iam::11111111111:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/AAAAAAAAAA"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringLike": {
+                    "oidc.eks.us-west-2.amazonaws.com/id/AAAAAAAAAA:sub": "system:*:domino-field:domino-irsa-lite-admin-sa",
+                    "oidc.eks.us-west-2.amazonaws.com/id/AAAAAAAAAA:aud": "sts.amazonaws.com"
+                }
+            }
+        }
+    ]
+}</code></pre>
+        </div>
+
+        <div class="section" id="installation">
+            <h2>Installation Prerequisites</h2>
+
+            <h3>Create Namespace</h3>
+            <pre><code>export ns=domino-field
+kubectl create namespace ${ns}
+
+# Label Namespace for Domino Compute
+kubectl label namespace ${ns} domino-compute=true</code></pre>
+
+            <h3>Create a Keycloak Client</h3>
+            <p>Get your Keycloak admin password (username is usually <code>keycloak</code>):</p>
+            <pre><code>export ps=domino-platform
+kubectl get secret -n $ps keycloak-http -o jsonpath='{.data.password}' | base64 --decode && echo</code></pre>
+
+            <p>Create a Keycloak client with minimum privileges:</p>
+            <pre><code>export KC_URL="http://keycloak-http.domino-platform.svc.cluster.local:80/auth"
+export REALM="DominoRealm"
+export KC_ADMIN_USER="keycloak"
+export CLIENT_ID="irsa-mapping-manager"
+#export KC_ADMIN_PASS="&lt;ADD_ADMIN_PASS&gt;"
+python ./scripts/bootstrap_keycloak_client.py | jq</code></pre>
+
+            <p>This will generate output like:</p>
+            <pre><code>{
+  "kc_url": "https://&lt;DOMINO_URL&gt;.cs.domino.tech/auth",
+  "realm": "DominoRealm",
+  "client_id": "irsa-mapping-manager",
+  "client_secret": "j5...",
+  "granted_roles": ["query-groups", "query-users", "manage-users"]
+}</code></pre>
+
+            <div class="note">
+                <strong>Note:</strong> Save the <code>client_secret</code> - you'll need it for the Helm values.
+            </div>
+        </div>
+
+        <div class="section" id="helm">
+            <h2>Helm Installation</h2>
+
+            <h3>Install</h3>
+            <p>Update <code>client_secret</code> in your values file, then:</p>
+            <pre><code>export ns=domino-field
+helm install cloud-identity-management-utils helm/cloud-identity-management-utils/ \
+    -n $ns -f helm/cloud-identity-management-utils/myvalues.yaml</code></pre>
+
+            <h3>Upgrade</h3>
+            <pre><code>export ns=domino-field
+helm upgrade cloud-identity-management-utils helm/cloud-identity-management-utils/ \
+    -n $ns -f helm/cloud-identity-management-utils/myvalues.yaml</code></pre>
+
+            <h3>Delete</h3>
+            <pre><code>export ns=domino-field
+helm delete cloud-identity-management-utils -n $ns</code></pre>
+        </div>
+
+        <div class="section" id="keycloak">
+            <h2>Configure User Groups</h2>
+
+            <pre><code>export KC_URL="http://keycloak-http.domino-platform.svc.cluster.local:80/auth"
+export REALM="DominoRealm"
+export KC_ADMIN_USER="keycloak"
+export CLIENT_ID="irsa-mapping-manager"
+export KC_GROUPS_CONFIG="./resources/kc_groups.json"
+
+# Dry run to see the changes
+python ./scripts/kc_apply_group_spec.py --spec ${KC_GROUPS_CONFIG} --dry-run
+
+# Apply the changes if you like them
+python ./scripts/kc_apply_group_spec.py --spec ${KC_GROUPS_CONFIG}</code></pre>
+        </div>
+
+        <div class="section" id="irsa">
+            <h2>IRSA Configuration</h2>
+
+            <h3>1. Create a default role for all users</h3>
+            <p>Create a trust policy that allows all service accounts in domino-compute namespace:</p>
+            <pre><code>{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "arn:aws:iam::11111111111:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/&lt;ID&gt;"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringLike": {
+                    "oidc.eks.us-west-2.amazonaws.com/id/&lt;ID&gt;:aud": "sts.amazonaws.com",
+                    "oidc.eks.us-west-2.amazonaws.com/id/&lt;ID&gt;:sub": "system:serviceaccount:domino-compute:*"
+                }
+            }
+        }
+    ]
+}</code></pre>
+
+            <div class="warning">
+                <strong>Warning:</strong> Do not add any policies to this role. This is only to test that IRSA is configured correctly by AWS webhooks.
+            </div>
+
+            <h3>2. Configure managed IAM roles</h3>
+            <p>Update trust policies for roles managed by Keycloak groups. The <code>sub</code> claim will be populated by the sync process:</p>
+            <pre><code>{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "arn:aws:iam::11111111111:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/&lt;ID&gt;"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringLike": {
+                    "oidc.eks.us-west-2.amazonaws.com/id/&lt;ID&gt;:aud": "sts.amazonaws.com",
+                    "oidc.eks.us-west-2.amazonaws.com/id/&lt;ID&gt;:sub": ""
+                }
+            }
+        }
+    ]
+}</code></pre>
+        </div>
+
+        <div class="section" id="sync">
+            <h2>Sync Commands</h2>
+
+            <h3>Sync Domino Users to K8s Service Accounts</h3>
+            <pre><code>export DEFAULT_AWS_ROLE_ARN="arn:aws:iam::946429944765:role/acme_domino_default_role"
+
+# Dry run first
+python ./scripts/sync.py users --default-aws-role-arn $DEFAULT_AWS_ROLE_ARN --dry-run
+
+# Apply
+python ./scripts/sync.py users --default-aws-role-arn $DEFAULT_AWS_ROLE_ARN</code></pre>
+
+            <h3>Sync Keycloak Groups to IAM IRSA</h3>
+            <pre><code>export DOMINO_API_PROXY="http://localhost:8899"
+
+# Dry run first
+python ./scripts/sync.py irsa --dry-run
+
+# Apply
+python ./scripts/sync.py irsa</code></pre>
+        </div>
+
+        <div class="section" id="summary">
+            <h2>Summary</h2>
+
+            <p>This is a <strong>five-step process</strong>:</p>
+            <ol>
+                <li>Create Keycloak client with minimum privileges</li>
+                <li>Install the helm chart for cloud-identity-management-utils</li>
+                <li>Configure Keycloak groups and map them to IAM roles with IRSA trust policies</li>
+                <li>Sync Domino users to K8s Service Accounts with proper annotations</li>
+                <li>Sync Keycloak groups to IAM roles with IRSA trust policies</li>
+            </ol>
+
+            <p><strong>Steps (1) and (2)</strong> need to be done only once.</p>
+
+            <p><strong>Steps (3), (4) and (5)</strong> need to be repeated as needed:</p>
+            <ul>
+                <li><strong>New user added to Domino:</strong> Update JSON spec in step (3) to include the user in a Keycloak group. Run step (4) to create a K8s Service Account, then run step (5) to update IAM role mappings.</li>
+                <li><strong>New IAM role needed:</strong> Update the JSON spec in step (3) and run step (5) again.</li>
+                <li><strong>User changes groups:</strong> Update the JSON spec in step (3) and run step (5) again.</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

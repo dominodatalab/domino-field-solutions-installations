@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloud Identity Management for Domino</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f1a; color: #e2e8f0; }
+
+  /* NAV */
+  #nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: #0f0f1acc; backdrop-filter: blur(10px); border-bottom: 1px solid #7c3aed44; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 52px; }
+  #nav .logo { font-size: 13px; color: #06b6d4; font-weight: 600; }
+  #nav .nav-slides { display: flex; gap: 6px; }
+  #nav .nav-dot { width: 28px; height: 28px; border-radius: 6px; border: 1px solid #7c3aed55; background: transparent; color: #94a3b8; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s; }
+  #nav .nav-dot:hover, #nav .nav-dot.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+  #nav .nav-arrows { display: flex; gap: 8px; }
+  #nav button.arr { background: #16213e; border: 1px solid #7c3aed55; color: #e2e8f0; padding: 4px 14px; border-radius: 6px; cursor: pointer; font-size: 16px; transition: all .2s; }
+  #nav button.arr:hover { background: #7c3aed; border-color: #7c3aed; }
+
+  /* SLIDES CONTAINER */
+  #deck { margin-top: 52px; }
+
+  /* SLIDE BASE */
+  .slide { display: none; min-height: calc(100vh - 52px); padding: 48px 64px 40px; position: relative; overflow: hidden; }
+  .slide.active { display: flex; flex-direction: column; }
+  .slide::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #7c3aed, #06b6d4); }
+
+  /* SLIDE COUNTER */
+  .slide-num { position: absolute; bottom: 18px; right: 28px; font-size: 11px; color: #475569; }
+
+  /* TITLE SLIDE */
+  .slide-title { background: #1E1E2E; justify-content: center; align-items: center; text-align: center; }
+  .slide-title h1 { font-size: 42px; font-weight: 800; color: #fff; line-height: 1.2; margin-bottom: 20px; }
+  .slide-title .divider { width: 320px; height: 3px; background: linear-gradient(90deg, #7c3aed, #06b6d4); margin: 0 auto 20px; border-radius: 2px; }
+  .slide-title .subtitle { font-size: 20px; color: #06b6d4; font-weight: 400; }
+  .slide-title .tag { margin-top: 48px; font-size: 12px; color: #475569; letter-spacing: 2px; text-transform: uppercase; }
+
+  /* CONTENT SLIDES */
+  .slide-content { background: #1E1E2E; }
+  .slide-header { margin-bottom: 28px; }
+  .slide-header h2 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .slide-header .sub { font-size: 14px; color: #06b6d4; }
+  .slide-header .rule { height: 2px; background: linear-gradient(90deg, #7c3aed, transparent); margin-top: 12px; border-radius: 1px; }
+
+  /* BULLETS */
+  .bullets { display: flex; flex-direction: column; gap: 0; }
+  .bullet { display: flex; align-items: flex-start; gap: 10px; }
+  .bullet.l0 { margin-top: 12px; }
+  .bullet.l1 { margin-left: 28px; margin-top: 4px; }
+  .bullet.l0 .icon { color: #7c3aed; font-size: 14px; margin-top: 2px; flex-shrink: 0; }
+  .bullet.l1 .icon { color: #06b6d4; font-size: 10px; margin-top: 4px; flex-shrink: 0; }
+  .bullet.l0 .txt { font-size: 14px; font-weight: 600; color: #fff; line-height: 1.5; }
+  .bullet.l1 .txt { font-size: 13px; color: #cbd5e1; line-height: 1.5; }
+
+  /* TABLE */
+  .data-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  .data-table th { background: #7c3aed; color: #fff; padding: 10px 14px; font-size: 12px; text-align: left; }
+  .data-table td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid #1e3a5f; }
+  .data-table tr:nth-child(even) td { background: #16213e; }
+  .data-table tr:nth-child(odd) td { background: #0d1b2a; }
+  .data-table td:first-child { color: #06b6d4; font-weight: 600; }
+  .data-table td:not(:first-child) { color: #cbd5e1; }
+  .yes { color: #22c55e !important; font-weight: 700; }
+  .no  { color: #ef4444 !important; font-weight: 700; }
+
+  /* CODE BLOCK */
+  .code-label { font-size: 12px; font-weight: 700; color: #06b6d4; margin-bottom: 6px; margin-top: 16px; }
+  .code-label:first-child { margin-top: 0; }
+  pre { background: #0f0f1a; border: 1px solid #7c3aed44; border-radius: 8px; padding: 14px 16px; font-family: 'Courier New', monospace; font-size: 11.5px; color: #06b6d4; overflow-x: auto; line-height: 1.6; }
+
+  /* BEFORE/AFTER */
+  .compare { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; margin-top: 8px; }
+  .compare-box { border-radius: 10px; padding: 16px 20px; }
+  .compare-box.before { background: #2d1515; border: 1.5px solid #ef4444; }
+  .compare-box.after  { background: #0f2d1a; border: 1.5px solid #22c55e; }
+  .compare-box h3 { font-size: 14px; font-weight: 700; text-align: center; margin-bottom: 12px; }
+  .compare-box.before h3 { color: #ef4444; }
+  .compare-box.after  h3 { color: #22c55e; }
+  .compare-box ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .compare-box.before li { font-size: 12px; color: #fca5a5; }
+  .compare-box.after  li { font-size: 12px; color: #86efac; }
+  .compare-box li::before { content: '• '; }
+  .arrow { font-size: 32px; color: #06b6d4; font-weight: 700; text-align: center; }
+  .note-box { background: #1e1b4b; border: 1px solid #7c3aed; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 12px; color: #e2e8f0; }
+
+  /* TAKEAWAYS */
+  .takeaways { display: flex; flex-direction: column; gap: 10px; }
+  .takeaway { display: flex; align-items: center; gap: 14px; background: #16213e; border-radius: 8px; padding: 12px 16px; border-left: 3px solid #7c3aed; }
+  .takeaway .num { background: #7c3aed; color: #fff; width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .takeaway .txt { font-size: 13px; color: #e2e8f0; line-height: 1.4; }
+  .takeaway .txt strong { color: #06b6d4; }
+
+  /* ANIMATIONS */
+  .slide.active { animation: fadeIn .25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="logo">☁️ Cloud Identity Management for Domino</div>
+  <div class="nav-slides" id="navDots"></div>
+  <div class="nav-arrows">
+    <button class="arr" onclick="go(-1)">←</button>
+    <button class="arr" onclick="go(1)">→</button>
+  </div>
+</nav>
+
+<div id="deck">
+
+<!-- SLIDE 1: Title -->
+<div class="slide slide-title active" id="s1">
+  <h1>Cloud Identity Management<br>for Domino</h1>
+  <div class="divider"></div>
+  <div class="subtitle">IRSA Integration Architecture &amp; Implementation</div>
+  <div class="tag">Demo Overview</div>
+  <div class="slide-num">1 / 10</div>
+</div>
+
+<!-- SLIDE 2: How IRSA Works -->
+<div class="slide slide-content" id="s2">
+  <div class="slide-header">
+    <h2>How IRSA Works</h2>
+    <div class="sub">EKS OIDC Infrastructure</div>
+    <div class="rule"></div>
+  </div>
+  <div class="bullets">
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">EKS OIDC Provider</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">URL: oidc.eks.{region}.amazonaws.com/id/{cluster-id}</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Publishes /.well-known/openid-configuration and JWKS endpoint</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Registered with AWS IAM as a trusted identity provider</span></div>
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">Kube API Server</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Configured with --service-account-issuer (OIDC URL)</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Issues JWTs via Projected ServiceAccount Token Volume</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Tokens contain: iss, sub, aud claims</span></div>
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">Pod Identity Webhook (EKS Managed)</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Mounts Projected ServiceAccount Token Volume into pod</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Sets AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE env vars</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">AWS SDKs automatically call STS AssumeRoleWithWebIdentity</span></div>
+  </div>
+  <div class="slide-num">2 / 10</div>
+</div>
+
+<!-- SLIDE 3: Key Components -->
+<div class="slide slide-content" id="s3">
+  <div class="slide-header">
+    <h2>IRSA Flow: Key Components</h2>
+    <div class="sub">Pod → Token → STS → IAM Role</div>
+    <div class="rule"></div>
+  </div>
+  <table class="data-table">
+    <thead><tr><th>Component</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>EKS OIDC Provider</td><td>Issues signed JWTs, registered with AWS IAM as trusted identity provider</td></tr>
+      <tr><td>Kube API Server</td><td>Configured to issue tokens with OIDC-compatible claims</td></tr>
+      <tr><td>Projected SA Token</td><td>Short-lived JWT mounted into pod, auto-refreshed by kubelet</td></tr>
+      <tr><td>Pod Identity Webhook</td><td>Mutates pods to mount token volume and set AWS env vars</td></tr>
+      <tr><td>IAM Trust Policy</td><td>Validates JWT sub claim matches allowed ServiceAccount</td></tr>
+    </tbody>
+  </table>
+  <div class="slide-num">3 / 10</div>
+</div>
+
+<!-- SLIDE 4: The Problem -->
+<div class="slide slide-content" id="s4">
+  <div class="slide-header">
+    <h2>The Problem for Domino</h2>
+    <div class="sub">Dynamic ServiceAccounts vs. Static IAM Trust Policies</div>
+    <div class="rule"></div>
+  </div>
+  <div class="bullets">
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">All IRSA infrastructure is already in place on EKS</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">OIDC provider, webhook, and token projection are built-in</span></div>
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">The core challenge: IRSA binds roles to ServiceAccount names</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Domino dynamically generates SA names per execution (e.g. run-12345-abcde)</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">IAM trust policies require exact SA name matching</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Would need constant trust policy updates — impossible to maintain</span></div>
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">Our Goal</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Leverage existing EKS IRSA machinery with minimum Domino interventions</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Just one mutation: swap the SA name to a stable, username-based SA</span></div>
+  </div>
+  <div class="slide-num">4 / 10</div>
+</div>
+
+<!-- SLIDE 5: Keycloak -->
+<div class="slide slide-content" id="s5">
+  <div class="slide-header">
+    <h2>Keycloak-Based User-to-Role Mapping</h2>
+    <div class="sub">Keycloak Groups as the Source of Truth</div>
+    <div class="rule"></div>
+  </div>
+  <div class="bullets">
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">Challenge: Map Domino users to AWS IAM roles with dynamic SAs</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">ServiceAccounts are dynamically created per execution</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">User identity must persist across sessions</span></div>
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">Solution: Keycloak groups encode IAM role assignments</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Groups in path /irsa-mappings/&lt;role-arn&gt; hold members</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">User JWT contains group memberships — no external deps needed</span></div>
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">Benefits</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Manageable without AWS console access</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">IaC compatible — version-controlled via kc_apply_group_spec.py</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Dry-run support: preview changes before applying</span></div>
+  </div>
+  <div class="slide-num">5 / 10</div>
+</div>
+
+<!-- SLIDE 6: IaC & CLI -->
+<div class="slide slide-content" id="s6">
+  <div class="slide-header">
+    <h2>IaC: Group Spec &amp; CLI</h2>
+    <div class="sub">Version-Controlled, Auditable Configuration</div>
+    <div class="rule"></div>
+  </div>
+  <div class="code-label">Group Specification (groups.json)</div>
+  <pre>{
+  "root_group": "/irsa-mappings",
+  "groups": [
+    { "name": "arn:aws:iam::123456789:role/data-scientist-role", "members": ["alice", "bob"] },
+    { "name": "arn:aws:iam::123456789:role/ml-engineer-role",    "members": ["charlie", "alice"] }
+  ]
+}</pre>
+  <div class="code-label">CLI Usage (sync.py)</div>
+  <pre># Apply Keycloak group spec (dry-run first)
+python kc_apply_group_spec.py --spec groups.json --dry-run
+python kc_apply_group_spec.py --spec groups.json
+
+# Sync users to K8s ServiceAccounts
+python sync.py users --default-aws-role-arn $ROLE --dry-run
+python sync.py users --default-aws-role-arn $ROLE
+
+# Sync Keycloak groups to IAM trust policies
+python sync.py irsa --dry-run
+python sync.py irsa</pre>
+  <div class="slide-num">6 / 10</div>
+</div>
+
+<!-- SLIDE 7: Mutation Webhook -->
+<div class="slide slide-content" id="s7">
+  <div class="slide-header">
+    <h2>The Mutation Webhook</h2>
+    <div class="sub">Dynamic → Fixed Username-Based ServiceAccounts</div>
+    <div class="rule"></div>
+  </div>
+  <div class="compare">
+    <div class="compare-box before">
+      <h3>❌ Before (Dynamic)</h3>
+      <ul>
+        <li>SA Name: run-12345-abcde</li>
+        <li>Trust Policy: Must update per run</li>
+        <li>IAM Binding: Impossible to maintain</li>
+        <li>Audit: "Which user was run-12345?"</li>
+      </ul>
+    </div>
+    <div class="arrow">→</div>
+    <div class="compare-box after">
+      <h3>✅ After (Username-Based)</h3>
+      <ul>
+        <li>SA Name: alice</li>
+        <li>Trust Policy: Fixed — sub: ...alice</li>
+        <li>IAM Binding: Stable, user-centric</li>
+        <li>Audit: Clear — "alice"</li>
+      </ul>
+    </div>
+  </div>
+  <div class="note-box">
+    💡 The <code>sub</code> claim never changes for user <strong>alice</strong> regardless of how many executions they run.
+    Trust policy uses: <code>"sub": "system:serviceaccount:*:alice"</code>
+  </div>
+  <div class="slide-num">7 / 10</div>
+</div>
+
+<!-- SLIDE 8: Admin Service Security -->
+<div class="slide slide-content" id="s8">
+  <div class="slide-header">
+    <h2>Admin Service: Security Model</h2>
+    <div class="sub">domino-irsa-lite-admin — Strict Safety Controls</div>
+    <div class="rule"></div>
+  </div>
+  <table class="data-table">
+    <thead><tr><th>Action</th><th style="text-align:center">Allowed?</th><th>Reason</th></tr></thead>
+    <tbody>
+      <tr><td>Modify sub claim for matching OIDC provider</td><td style="text-align:center" class="yes">YES</td><td>Core functionality</td></tr>
+      <tr><td>Modify roles with different OIDC provider URL</td><td style="text-align:center" class="no">NO</td><td>Could affect other clusters</td></tr>
+      <tr><td>Change the OIDC provider in trust policy</td><td style="text-align:center" class="no">NO</td><td>Could redirect trust</td></tr>
+      <tr><td>Change the audience claim</td><td style="text-align:center" class="no">NO</td><td>Could weaken security</td></tr>
+      <tr><td>Add new Statement blocks</td><td style="text-align:center" class="no">NO</td><td>Only modifies existing sub</td></tr>
+      <tr><td>Modify IAM policies (permissions)</td><td style="text-align:center" class="no">NO</td><td>Only touches trust policies</td></tr>
+    </tbody>
+  </table>
+  <div class="slide-num">8 / 10</div>
+</div>
+
+<!-- SLIDE 9: Architecture Summary -->
+<div class="slide slide-content" id="s9">
+  <div class="slide-header">
+    <h2>Architecture Summary</h2>
+    <div class="sub">End-to-End Integration</div>
+    <div class="rule"></div>
+  </div>
+  <div class="bullets">
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">Three core integrations: Keycloak ↔ K8s API (SAs) ↔ AWS IAM (Roles)</span></div>
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">Admin Service (FastAPI) — Central orchestration layer</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">POST /k8s/users/sync — Create/update user ServiceAccounts</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">POST /iam/irsa/sync — Sync trust policies</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">GET /keycloak/groups, POST /keycloak/groups/member</span></div>
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">Three client interfaces</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">CLI (sync.py) — with --dry-run support</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Streamlit UI (app.py) — Visual admin with User Mappings, IRSA Groups, Sync tabs</span></div>
+    <div class="bullet l1"><span class="icon">•</span><span class="txt">Mutation Webhook — Swaps SA name at pod creation time</span></div>
+    <div class="bullet l0"><span class="icon">▸</span><span class="txt">Admin service uses IRSA itself — fully bootstrapped, no static credentials</span></div>
+  </div>
+  <div class="slide-num">9 / 10</div>
+</div>
+
+<!-- SLIDE 10: Key Takeaways -->
+<div class="slide slide-content" id="s10">
+  <div class="slide-header">
+    <h2>Key Takeaways</h2>
+    <div class="sub">Summary</div>
+    <div class="rule"></div>
+  </div>
+  <div class="takeaways">
+    <div class="takeaway"><div class="num">1</div><div class="txt"><strong>IRSA binds IAM roles to ServiceAccount names</strong> — Domino uses dynamic SA names</div></div>
+    <div class="takeaway"><div class="num">2</div><div class="txt"><strong>Keycloak groups as source of truth</strong> — User-to-role mappings stored in Keycloak, accessible via JWT</div></div>
+    <div class="takeaway"><div class="num">3</div><div class="txt"><strong>Username-based ServiceAccounts</strong> — Mutation webhook swaps dynamic SAs for persistent user SAs</div></div>
+    <div class="takeaway"><div class="num">4</div><div class="txt"><strong>IaC from inside Domino</strong> — kc_apply_group_spec.py + CLI + UI with dry-run support</div></div>
+    <div class="takeaway"><div class="num">5</div><div class="txt"><strong>All config derives from JWT</strong> — No external credentials needed inside workspace</div></div>
+    <div class="takeaway"><div class="num">6</div><div class="txt"><strong>Admin service uses IRSA itself</strong> — Bootstrapped with its own IRSA role to manage trust policies</div></div>
+    <div class="takeaway"><div class="num">7</div><div class="txt"><strong>Strict safety controls</strong> — Only modifies sub claim when OIDC provider and audience match</div></div>
+  </div>
+  <div class="slide-num">10 / 10</div>
+</div>
+
+</div><!-- /deck -->
+
+<script>
+  let cur = 1;
+  const total = 10;
+
+  const dots = document.getElementById("navDots");
+  for (let i = 1; i <= total; i++) {
+    const d = document.createElement("button");
+    d.className = "nav-dot" + (i === 1 ? " active" : "");
+    d.textContent = i;
+    d.onclick = () => goTo(i);
+    dots.appendChild(d);
+  }
+
+  function goTo(n) {
+    document.getElementById("s" + cur).classList.remove("active");
+    document.querySelectorAll(".nav-dot")[cur-1].classList.remove("active");
+    cur = Math.max(1, Math.min(total, n));
+    document.getElementById("s" + cur).classList.add("active");
+    document.querySelectorAll(".nav-dot")[cur-1].classList.add("active");
+  }
+
+  function go(dir) { goTo(cur + dir); }
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") go(1);
+    if (e.key === "ArrowLeft"  || e.key === "ArrowUp")   go(-1);
+  });
+</script>
+</body>
+</html>

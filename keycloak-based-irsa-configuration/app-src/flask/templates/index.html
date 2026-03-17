@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IRSA Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #4338ca;
+            --primary-light: #818cf8;
+            --success: #10b981;
+            --success-dark: #059669;
+            --danger: #ef4444;
+            --danger-dark: #dc2626;
+            --warning: #f59e0b;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --sidebar-width: 260px;
+            --header-height: 64px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--gray-50);
+            color: var(--gray-800);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--header-height);
+            background: linear-gradient(135deg, var(--gray-900) 0%, var(--gray-800) 100%);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            z-index: 100;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: white;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 600;
+            letter-spacing: -0.025em;
+        }
+
+        .header-actions {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(16, 185, 129, 0.15);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #34d399;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            bottom: 0;
+            width: var(--sidebar-width);
+            background: white;
+            border-right: 1px solid var(--gray-200);
+            padding: 24px 16px;
+            overflow-y: auto;
+        }
+
+        .nav-section {
+            margin-bottom: 24px;
+        }
+
+        .nav-section-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--gray-400);
+            padding: 0 12px;
+            margin-bottom: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .nav-item:hover {
+            background: var(--gray-100);
+            color: var(--gray-900);
+        }
+
+        .nav-item.active {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+        }
+
+        .nav-icon {
+            width: 20px;
+            height: 20px;
+            opacity: 0.7;
+        }
+
+        .nav-item.active .nav-icon {
+            opacity: 1;
+        }
+
+        /* Main Content */
+        .main {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            padding: 32px;
+            min-height: calc(100vh - var(--header-height));
+        }
+
+        .page {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            color: var(--gray-500);
+            font-size: 0.95rem;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid var(--gray-100);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        .card-subtitle {
+            font-size: 0.85rem;
+            color: var(--gray-500);
+            margin-top: 4px;
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--gray-500);
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        td {
+            padding: 14px 16px;
+            font-size: 0.9rem;
+            color: var(--gray-700);
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: var(--gray-50);
+        }
+
+        .code {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.8rem;
+            background: var(--gray-100);
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: var(--gray-700);
+        }
+
+        .code-sm {
+            font-size: 0.75rem;
+            word-break: break-all;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 18px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success) 0%, var(--success-dark) 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-danger {
+            background: white;
+            color: var(--danger);
+            border: 1px solid var(--gray-200);
+        }
+
+        .btn-danger:hover {
+            background: #fef2f2;
+            border-color: var(--danger);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--gray-700);
+            border: 1px solid var(--gray-200);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-50);
+            border-color: var(--gray-300);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-icon {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 6px;
+        }
+
+        .form-hint {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            margin-top: 6px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            background: white;
+            transition: all 0.15s ease;
+            font-family: inherit;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .form-control::placeholder {
+            color: var(--gray-400);
+        }
+
+        select.form-control {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 14px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .alert-error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .alert-info {
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        /* Group Info */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .info-item {
+            background: var(--gray-50);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--gray-100);
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--gray-500);
+            margin-bottom: 6px;
+        }
+
+        .info-value {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: var(--gray-800);
+            word-break: break-all;
+        }
+
+        /* Add Member Row */
+        .add-member-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            padding: 16px;
+            background: var(--gray-50);
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+
+        .add-member-row select {
+            flex: 1;
+            max-width: 300px;
+        }
+
+        /* Config Preview */
+        .config-preview {
+            background: var(--gray-900);
+            color: #e5e7eb;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 16px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Toast */
+        #toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            animation: slideUp 0.3s ease;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .toast.success {
+            background: var(--gray-900);
+            color: white;
+        }
+
+        .toast.error {
+            background: var(--danger);
+            color: white;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 48px;
+            color: var(--gray-500);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--gray-200);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Stats */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--gray-100);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--gray-900);
+        }
+
+        /* Button Group */
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .main {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="toast-container"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">IR</div>
+            <span class="logo-text">IRSA Admin</span>
+        </div>
+        <div class="header-actions">
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                Connected
+            </div>
+        </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <nav class="nav-section">
+            <div class="nav-section-title">Management</div>
+            <button class="nav-item active" data-page="mappings">
+                <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                User Mappings
+            </button>
+            <button class="nav-item" data-page="keycloak">
+                <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+                IAM Role Groups
+            </button>
+        </nav>
+        <nav class="nav-section">
+            <div class="nav-section-title">Actions</div>
+            <button class="nav-item" onclick="refreshAll()">
+                <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Refresh All Data
+            </button>
+        </nav>
+        <nav class="nav-section">
+            <div class="nav-section-title">Resources</div>
+            <a class="nav-item" href="docs" target="_blank">
+                <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Docs
+            </a>
+            <a class="nav-item" href="presentation" target="_blank">
+                <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/>
+                </svg>
+                Architecture Slides
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Page 1: User Mappings -->
+        <div id="mappings" class="page active">
+            <div class="page-header">
+                <h1 class="page-title">User Service Account Mappings</h1>
+                <p class="page-subtitle">Manage Domino user to Kubernetes service account mappings with IAM roles</p>
+            </div>
+
+            <div class="stats-row" id="mapping-stats">
+                <div class="stat-card">
+                    <div class="stat-label">Total Users</div>
+                    <div class="stat-value" id="stat-users">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Mapped Accounts</div>
+                    <div class="stat-value" id="stat-mapped">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">With IAM Roles</div>
+                    <div class="stat-value" id="stat-roles">-</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">Current Mappings</h2>
+                        <p class="card-subtitle">Users and their associated service accounts</p>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="refreshMappings()">
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+
+                <div id="mappings-alert"></div>
+
+                <div id="mappings-table">
+                    <div class="loading"><span class="spinner"></span>Loading mappings...</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">Sync Configuration</h2>
+                        <p class="card-subtitle">Configure and sync IAM roles for all users</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="aws-arn">Default IAM Role ARN</label>
+                    <input type="text" id="aws-arn" class="form-control"
+                           placeholder="arn:aws:iam::123456789012:role/YourRoleName">
+                    <p class="form-hint">This IAM Role ARN will be applied to all Domino users during sync.</p>
+                </div>
+
+                <button class="btn btn-primary" onclick="syncUsers()">
+                    <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                    </svg>
+                    Sync All Users
+                </button>
+            </div>
+        </div>
+
+        <!-- Page 2: Keycloak Groups -->
+        <div id="keycloak" class="page">
+            <div class="page-header">
+                <h1 class="page-title">IAM Role Group Management</h1>
+                <p class="page-subtitle">Manage Keycloak groups and their IAM role assignments</p>
+            </div>
+
+            <div id="keycloak-alert"></div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">Select Group</h2>
+                        <p class="card-subtitle">Choose a group to view and manage members</p>
+                    </div>
+                </div>
+
+                <div id="keycloak-content">
+                    <div class="loading"><span class="spinner"></span>Loading groups...</div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="toggleConfig()">
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                        </svg>
+                        View Config
+                    </button>
+                    <button class="btn btn-primary" onclick="syncIrsa()">
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                        </svg>
+                        Sync IRSA
+                    </button>
+                </div>
+
+                <div id="config-preview" class="config-preview hidden"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Base path for API calls (set by Flask template)
+        const BASE_PATH = '{{ base_path }}';
+        const API_BASE = BASE_PATH + 'api/';
+
+        // State
+        let mappingsData = [];
+        let keycloakGroups = [];
+        let keycloakMembers = [];
+        let selectedGroupId = null;
+        let configVisible = false;
+
+        // Navigation
+        document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+            item.addEventListener('click', () => {
+                const page = item.dataset.page;
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                item.classList.add('active');
+                document.getElementById(page).classList.add('active');
+            });
+        });
+
+        // Toast notifications
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    ${type === 'success'
+                        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+                        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>'}
+                </svg>
+                ${message}
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        // Fetch settings
+        async function fetchSettings() {
+            try {
+                const response = await fetch(API_BASE + 'settings');
+                const data = await response.json();
+                if (data.default_iam_role_arn) {
+                    document.getElementById('aws-arn').value = data.default_iam_role_arn;
+                }
+            } catch (e) {
+                console.error('Failed to fetch settings:', e);
+            }
+        }
+
+        // Fetch mappings
+        async function fetchMappings() {
+            try {
+                const response = await fetch(API_BASE + 'domino-mappings');
+                const data = await response.json();
+                if (data.error) {
+                    showAlert('mappings-alert', data.error, 'error');
+                    return;
+                }
+                mappingsData = data.mappings;
+                renderMappingsTable();
+                updateStats();
+            } catch (e) {
+                showAlert('mappings-alert', `Failed to fetch mappings: ${e.message}`, 'error');
+            }
+        }
+
+        function updateStats() {
+            const total = mappingsData.length;
+            const mapped = mappingsData.filter(m => m.service_account).length;
+            const withRoles = mappingsData.filter(m => m.default_aws_iam_role).length;
+
+            document.getElementById('stat-users').textContent = total;
+            document.getElementById('stat-mapped').textContent = mapped;
+            document.getElementById('stat-roles').textContent = withRoles;
+        }
+
+        function renderMappingsTable() {
+            const container = document.getElementById('mappings-table');
+            if (mappingsData.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">No mappings found.</div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Domino User</th>
+                                <th>Service Account</th>
+                                <th>Default AWS IAM Role</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${mappingsData.map(m => `
+                                <tr>
+                                    <td><strong>${escapeHtml(m.domino_user)}</strong></td>
+                                    <td>${m.service_account ? `<span class="code">${escapeHtml(m.service_account)}</span>` : '<span style="color: var(--gray-400)">—</span>'}</td>
+                                    <td>${m.default_aws_iam_role ? `<span class="code code-sm">${escapeHtml(m.default_aws_iam_role)}</span>` : '<span style="color: var(--gray-400)">—</span>'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        async function refreshMappings() {
+            document.getElementById('mappings-table').innerHTML = '<div class="loading"><span class="spinner"></span>Loading mappings...</div>';
+            await fetchMappings();
+            showToast('Data refreshed successfully');
+        }
+
+        async function refreshAll() {
+            await Promise.all([fetchMappings(), fetchKeycloakData()]);
+            showToast('All data refreshed');
+        }
+
+        async function syncUsers() {
+            const arn = document.getElementById('aws-arn').value.trim();
+            if (!arn) {
+                showAlert('mappings-alert', 'Please enter a Target IAM Role ARN before syncing.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(API_BASE + 'sync-users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ default_aws_role_arn: arn })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast(data.message);
+                    await fetchMappings();
+                } else {
+                    showAlert('mappings-alert', data.error, 'error');
+                }
+            } catch (e) {
+                showAlert('mappings-alert', `Sync failed: ${e.message}`, 'error');
+            }
+        }
+
+        // Keycloak functions
+        async function fetchKeycloakData() {
+            try {
+                const response = await fetch(API_BASE + 'keycloak-data');
+                const data = await response.json();
+                if (data.error) {
+                    showAlert('keycloak-alert', data.error, 'error');
+                    return;
+                }
+                keycloakGroups = data.groups;
+                keycloakMembers = data.members;
+
+                if (keycloakGroups.length > 0 && !selectedGroupId) {
+                    selectedGroupId = keycloakGroups[0].group_id;
+                }
+
+                renderKeycloakContent();
+            } catch (e) {
+                showAlert('keycloak-alert', `Failed to fetch data: ${e.message}`, 'error');
+            }
+        }
+
+        function renderKeycloakContent() {
+            const container = document.getElementById('keycloak-content');
+
+            if (keycloakGroups.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">No groups found.</div>';
+                return;
+            }
+
+            const selectedGroup = keycloakGroups.find(g => g.group_id === selectedGroupId) || keycloakGroups[0];
+            selectedGroupId = selectedGroup.group_id;
+
+            const groupMembers = keycloakMembers.filter(m => m.group_id === selectedGroupId);
+            const memberNames = groupMembers.map(m => m.domino_user_name);
+            const availableUsers = mappingsData
+                .map(m => m.domino_user)
+                .filter(u => !memberNames.includes(u))
+                .sort();
+
+            container.innerHTML = `
+                <div class="form-group">
+                    <label class="form-label" for="group-select">IAM Role Group</label>
+                    <select id="group-select" class="form-control" onchange="changeGroup(this.value)">
+                        ${keycloakGroups.map(g => `
+                            <option value="${g.group_id}" ${g.group_id === selectedGroupId ? 'selected' : ''}>
+                                ${escapeHtml(g.group_name)}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Group ID</div>
+                        <div class="info-value">${escapeHtml(selectedGroup.group_id)}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Target Role ARN</div>
+                        <div class="info-value">${escapeHtml(selectedGroup.target_role_arn)}</div>
+                    </div>
+                    ${selectedGroup.proxy_role_arn ? `
+                        <div class="info-item">
+                            <div class="info-label">Proxy Role ARN</div>
+                            <div class="info-value">${escapeHtml(selectedGroup.proxy_role_arn)}</div>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: var(--gray-800);">
+                    Group Members (${groupMembers.length})
+                </h3>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Domino User</th>
+                                <th>Service Account Subject</th>
+                                <th style="width: 100px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${groupMembers.length === 0
+                                ? `<tr><td colspan="3" style="text-align: center; color: var(--gray-400); padding: 32px;">No members in this group</td></tr>`
+                                : groupMembers.map(m => `
+                                    <tr>
+                                        <td><strong>${escapeHtml(m.domino_user_name)}</strong></td>
+                                        <td><span class="code code-sm">${escapeHtml(m.sub)}</span></td>
+                                        <td>
+                                            <button class="btn btn-danger btn-sm" onclick="removeMember('${escapeHtml(m.domino_user_name)}', '${escapeHtml(selectedGroup.group_name)}')">
+                                                Remove
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                ${availableUsers.length > 0 ? `
+                    <div class="add-member-row">
+                        <select id="user-to-add" class="form-control">
+                            ${availableUsers.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('')}
+                        </select>
+                        <button class="btn btn-success" onclick="addMember()">
+                            <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                            </svg>
+                            Add Member
+                        </button>
+                    </div>
+                ` : '<p style="color: var(--gray-500); margin-top: 16px; font-size: 0.9rem;">All available users are already members of this group.</p>'}
+            `;
+        }
+
+        function changeGroup(groupId) {
+            selectedGroupId = groupId;
+            renderKeycloakContent();
+        }
+
+        async function addMember() {
+            const userSelect = document.getElementById('user-to-add');
+            const username = userSelect.value;
+            const group = keycloakGroups.find(g => g.group_id === selectedGroupId);
+
+            try {
+                const response = await fetch(API_BASE + 'keycloak/member', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, group_name: group.group_name })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast(data.message);
+                    await syncIrsa(true);
+                    await fetchKeycloakData();
+                } else {
+                    showAlert('keycloak-alert', data.error, 'error');
+                }
+            } catch (e) {
+                showAlert('keycloak-alert', `Failed to add member: ${e.message}`, 'error');
+            }
+        }
+
+        async function removeMember(username, groupName) {
+            try {
+                const response = await fetch(API_BASE + 'keycloak/member', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, group_name: groupName })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast(data.message);
+                    await syncIrsa(true);
+                    await fetchKeycloakData();
+                } else {
+                    showAlert('keycloak-alert', data.error, 'error');
+                }
+            } catch (e) {
+                showAlert('keycloak-alert', `Failed to remove member: ${e.message}`, 'error');
+            }
+        }
+
+        async function syncIrsa(silent = false) {
+            try {
+                const response = await fetch(API_BASE + 'irsa-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    if (!silent) showToast(data.message);
+                } else {
+                    showAlert('keycloak-alert', data.error, 'error');
+                }
+            } catch (e) {
+                showAlert('keycloak-alert', `IRSA Sync failed: ${e.message}`, 'error');
+            }
+        }
+
+        function toggleConfig() {
+            const preview = document.getElementById('config-preview');
+            configVisible = !configVisible;
+
+            if (configVisible) {
+                const config = buildConfig();
+                preview.textContent = JSON.stringify(config, null, 2);
+                preview.classList.remove('hidden');
+            } else {
+                preview.classList.add('hidden');
+            }
+        }
+
+        function buildConfig() {
+            const children = keycloakGroups.map(g => {
+                const members = keycloakMembers
+                    .filter(m => m.group_id === g.group_id)
+                    .map(m => m.domino_user_name);
+
+                const obj = {
+                    "target-role-name": g.target_role_arn,
+                    "members": members
+                };
+
+                if (g.proxy_role_arn && g.proxy_role_arn.trim()) {
+                    obj["proxy-role-name"] = g.proxy_role_arn;
+                }
+
+                return obj;
+            });
+
+            return {
+                "root": "domino-irsa-roles",
+                "children": children
+            };
+        }
+
+        // Utility functions
+        function showAlert(containerId, message, type) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `
+                <div class="alert alert-${type}">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        ${type === 'error'
+                            ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>'
+                            : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>'}
+                    </svg>
+                    ${escapeHtml(message)}
+                </div>
+            `;
+            setTimeout(() => container.innerHTML = '', 5000);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchSettings();
+            await fetchMappings();
+            await fetchKeycloakData();
+        });
+    </script>
+</body>
+</html>

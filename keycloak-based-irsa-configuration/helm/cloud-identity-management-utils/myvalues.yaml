@@ -4,15 +4,16 @@ env:
   namespace:  domino-field
 side_car:
   claim_name: "domino-irsa-roles"
-  image: "quay.io/domino/domino-kc-groups-based-irsa-mapper:prod-v1"
+  image: "quay.io/domino/domino-kc-groups-based-irsa-mapper:prod-v2"
+
 admin:
   image: "quay.io/domino/cloud-identity-management-utils:prod-v1"
-  iam_role_arn: "arn:aws:iam::11111111111:role/acme_domino_irsa_admin_role"
-  oidc_provider_url: "oidc.eks.us-west-2.amazonaws.com/id/AAAAAAAAAAAAAAAAAAAAAAAAAA"
+  iam_role_arn: "arn:aws:iam::946429944765:role/acme_domino_irsa_admin_role"
+  oidc_provider_url: "oidc.eks.us-west-2.amazonaws.com/id/C45522E43181D1DB6273D7D69EB5C07A"
   kc_url: "http://keycloak-http.domino-platform.svc.cluster.local:80/auth"
   kc_realm: "DominoRealm"
   kc_client_id: "irsa-mapping-manager"
-  kc_client_secret: "HGGGGGG"
+  kc_client_secret: "TFMZLcPnsqsqSAhiTwMb0YJwZTN8SN8A"
   kc_irsa_root_group: "domino-irsa-roles"
 istio:
   enabled: false
