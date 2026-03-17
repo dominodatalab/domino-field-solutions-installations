@@ -19,8 +19,8 @@ env:
 proxy:
   # New Triton-compatible proxies (v2)
   # Built from Dockerfile.proxy.grpc and Dockerfile.proxy.http
-  grpc_image: "quay.io/domino/domino-triton-grpc-proxy:v4"
-  http_image: "quay.io/domino/domino-triton-http-proxy:v4"
+  grpc_image: "quay.io/domino/domino-triton-grpc-proxy:v5"
+  http_image: "quay.io/domino/domino-triton-http-proxy:v5"
   replicas: 2  # Multiple replicas for HA and load distribution
 
   # Skip authentication (for development/testing only)
@@ -49,7 +49,7 @@ proxy:
 
 # Admin API configuration
 admin:
-  image: "quay.io/domino/domino-triton-admin:v3"
+  image: "quay.io/domino/domino-triton-admin:v5"
   replicas: 1
 
 # Triton Inference Server configuration
@@ -60,7 +60,7 @@ triton_inference_server:
   # Options:
   #   - "nvcr.io/nvidia/tritonserver:24.10-py3"   # Stock image (ONNX models only)
   #   - "quay.io/domino/domino-triton-backend:v3" # Custom image (all models)
-  image: "quay.io/domino/domino-triton-backend:v3"
+  image: "quay.io/domino/domino-triton-backend:v5"
   replicas: 1
 
 # Persistence configuration
@@ -68,7 +68,7 @@ persistence:
   # S3 configuration for model repository (configs + weights + cache)
   # Directory structure: triton-repo/{models, weights, hf-cache}
   s3:
-    bucket: wgamage
+    bucket: <BUCKET_NAME>
     region: "us-west-2"
 
 # State pod configuration (Redis for shared proxy state)
