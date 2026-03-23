@@ -32,6 +32,7 @@ Behavior:
       * Reconciles membership:
           - Adds users present in spec but missing in group.
           - Removes users present in group but NOT in spec.
+  - Deletes any child groups under root that are NOT present in the spec.
   - Idempotent.
 
 Auth (env):
@@ -92,7 +93,6 @@ def post_form(url: str, data: Dict[str, str], timeout: int = 30) -> requests.Res
         data=data,
         headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
         timeout=timeout,
-        verify=False  # Disables SSL certificate verification
     )
 
 
@@ -118,7 +118,7 @@ def mint_admin_token(cfg: KCConfig) -> str:
 
 def kc_get(cfg: KCConfig, token: str, path: str, params: Optional[Dict[str, str]] = None) -> Any:
     url = f"{cfg.base_url}{path}"
-    r = requests.get(url, headers=_headers_json(token), params=params, timeout=30,verify=False)
+    r = requests.get(url, headers=_headers_json(token), params=params, timeout=30)
     if r.status_code >= 400:
         raise KCError(f"{r.status_code} error GET {url}: {r.text[:800]}")
     return r.json()
@@ -131,7 +131,6 @@ def kc_post_json(cfg: KCConfig, token: str, path: str, payload: Dict[str, Any]) 
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"},
         json=payload,
         timeout=30,
-        verify=False
     )
 
 
@@ -142,7 +141,6 @@ def kc_put(cfg: KCConfig, token: str, path: str, payload: Optional[Dict[str, Any
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"},
         json=payload,
         timeout=30,
-        verify=False
     )
 
 
@@ -273,6 +271,13 @@ def remove_user_from_group(cfg: KCConfig, token: str, user_id: str, group_id: st
         raise KCError(f"{r.status_code} error removing user {user_id} from group {group_id}: {r.text[:800]}")
 
 
+def delete_group(cfg: KCConfig, token: str, group_id: str) -> None:
+    path = f"/admin/realms/{cfg.realm}/groups/{group_id}"
+    r = kc_delete(cfg, token, path)
+    if r.status_code not in (200, 204):
+        raise KCError(f"{r.status_code} error deleting group {group_id}: {r.text[:800]}")
+
+
 # ------------------------------ spec handling --------------------------------
 
 def load_spec(path: str) -> Dict[str, Any]:
@@ -329,6 +334,12 @@ def apply(cfg: KCConfig, token: str, spec: Dict[str, Any], dry_run: bool) -> Dic
     ensured_groups: List[str] = []
     added_memberships: List[Dict[str, str]] = []
     removed_memberships: List[Dict[str, str]] = []
+    deleted_groups: List[str] = []
+
+    # Build set of desired group names from spec
+    desired_group_names: Set[str] = set()
+    for entry in spec.get("children", []):
+        desired_group_names.add(child_group_name(entry))
 
     for entry in spec.get("children", []):
         gname = child_group_name(entry)
@@ -365,11 +376,27 @@ def apply(cfg: KCConfig, token: str, spec: Dict[str, Any], dry_run: bool) -> Dic
             remove_user_from_group(cfg, token, str(uid), gid)
             removed_memberships.append({"username": username, "group": gname})
 
+    # Delete groups that exist in Keycloak but are not in the spec
+    if root_id != "__dry_run_root_id__":
+        existing_children = get_children(cfg, token, root_id)
+        for child in existing_children:
+            child_name = child.get("name", "")
+            child_id = child.get("id", "")
+            if child_name and child_name not in desired_group_names:
+                if dry_run:
+                    log(f"[dry-run] would delete orphaned group: {child_name}")
+                    deleted_groups.append(f"/{root_name}/{child_name}")
+                else:
+                    log(f"Deleting orphaned group: {child_name}")
+                    delete_group(cfg, token, child_id)
+                    deleted_groups.append(f"/{root_name}/{child_name}")
+
     return {
         "root": root_name,
         "ensured_groups": ensured_groups,
         "added_memberships": added_memberships,
         "removed_memberships": removed_memberships,
+        "deleted_groups": deleted_groups,
         "dry_run": dry_run,
     }
 
