@@ -25,6 +25,14 @@
                 <span class="status-label">Cordoned:</span>
                 <span class="status-value" x-text="model.state?.cordoned ? 'Yes' : 'No'"></span>
             </div>
+            <div class="status-item" x-show="tritonConfig?.backend">
+                <span class="status-label">Backend:</span>
+                <span class="status-value" x-text="tritonConfig?.backend"></span>
+            </div>
+            <div class="status-item" x-show="tritonConfig?.platform">
+                <span class="status-label">Platform:</span>
+                <span class="status-value" x-text="tritonConfig?.platform"></span>
+            </div>
         </div>
 
         <div class="action-buttons">
@@ -231,7 +239,7 @@
             </div>
         </div>
 
-        <!-- Current Config Display -->
+        <!-- Current Config Display (from admin API) -->
         <div class="current-config" x-show="rawConfig && !loadingConfig">
             <div class="config-header">
                 <h4>Current config.pbtxt</h4>
@@ -245,6 +253,71 @@
                 </div>
             </div>
             <pre class="config-display" x-show="showRawConfig" x-text="rawConfig"></pre>
+        </div>
+
+        <!-- Triton Config Viewer (from Triton native API, loaded models only) -->
+        <div class="current-config" x-show="model.loaded">
+            <div class="config-header">
+                <h4>Triton Config</h4>
+                <div class="config-actions">
+                    <button class="btn btn-secondary btn-sm" @click="loadTrivialConfig()" :disabled="loadingTritonConfig">
+                        <span x-text="loadingTritonConfig ? 'Loading...' : 'View Config'"></span>
+                    </button>
+                    <template x-if="tritonConfigJson">
+                        <button class="btn btn-secondary btn-sm" @click="copyTritonConfig()">
+                            <span x-text="tritonConfigCopied ? 'Copied!' : 'Copy'"></span>
+                        </button>
+                    </template>
+                    <template x-if="tritonConfigJson">
+                        <button class="btn btn-secondary btn-sm" @click="showTritonConfig = !showTritonConfig">
+                            <span x-text="showTritonConfig ? 'Collapse' : 'Expand'"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+            <p class="hint" x-show="tritonConfigError" x-text="tritonConfigError" style="color: var(--color-error); font-size: 0.85rem; margin: 0.5rem 0;"></p>
+            <pre class="config-display" x-show="tritonConfigJson && showTritonConfig" x-text="tritonConfigJson"></pre>
+        </div>
+    </section>
+
+    <!-- Authentication (Local Mode Only) -->
+    <section class="auth-section" x-show="authStatus.enabled">
+        <h3>Authentication</h3>
+        <div class="auth-form">
+            <div class="auth-type-selector">
+                <label>Auth Type:</label>
+                <label class="radio-label">
+                    <input type="radio" value="none" x-model="authType" name="auth_type" @change="updateAuth()">
+                    <span>None (use env vars)</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" value="bearer" x-model="authType" name="auth_type" @change="updateAuth()">
+                    <span>Bearer Token</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" value="apikey" x-model="authType" name="auth_type" @change="updateAuth()">
+                    <span>API Key</span>
+                </label>
+            </div>
+
+            <!-- Bearer Token Input -->
+            <div class="auth-input-section" x-show="authType === 'bearer'">
+                <label for="bearer-token">Bearer Token:</label>
+                <input type="password" id="bearer-token" x-model="bearerToken" placeholder="eyJhbGc..." class="auth-input">
+                <button class="btn btn-sm btn-secondary" @click="updateAuth()">Set Token</button>
+            </div>
+
+            <!-- API Key Input -->
+            <div class="auth-input-section" x-show="authType === 'apikey'">
+                <label for="api-key">API Key:</label>
+                <input type="password" id="api-key" x-model="apiKey" placeholder="Your API key..." class="auth-input">
+                <button class="btn btn-sm btn-secondary" @click="updateAuth()">Set Key</button>
+            </div>
+
+            <!-- Auth Status -->
+            <div class="auth-status" x-show="authMessage">
+                <span :class="{ 'success': authSuccess, 'error': !authSuccess }" x-text="authMessage"></span>
+            </div>
         </div>
     </section>
 
@@ -578,6 +651,95 @@
 
 {% block scripts %}
 <style>
+/* Auth section styles */
+.auth-section {
+    background-color: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border-color);
+}
+
+.auth-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.auth-type-selector {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.auth-type-selector > label:first-child {
+    font-weight: 500;
+    min-width: 80px;
+}
+
+.auth-input-section {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.auth-input-section label {
+    font-weight: 500;
+    min-width: 100px;
+}
+
+.auth-input {
+    flex: 1;
+    min-width: 200px;
+    max-width: 400px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-family: monospace;
+    font-size: 0.875rem;
+}
+
+.auth-status {
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+}
+
+.auth-status .success {
+    color: #166534;
+    background: #dcfce7;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+}
+
+.auth-status .error {
+    color: #991b1b;
+    background: #fef2f2;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+}
+
+.dark .auth-status .success {
+    color: #dcfce7;
+    background: #166534;
+}
+
+.dark .auth-status .error {
+    color: #fef2f2;
+    background: #991b1b;
+}
+
 /* Protocol selector */
 .protocol-selector {
     display: flex;
@@ -1406,6 +1568,7 @@
     flex: 0 0 auto;
     min-width: 100px;
 }
+
 </style>
 
 <script>
@@ -1428,6 +1591,13 @@ function modelDetailApp() {
         result: null,
         namespace: '{{ current_namespace }}',
         modelName: '{{ model_name }}',
+        // Local auth mode
+        authStatus: { enabled: false, auth_type: 'none', has_token: false, has_api_key: false },
+        authType: 'none',
+        bearerToken: '',
+        apiKey: '',
+        authMessage: '',
+        authSuccess: false,
         // Device configuration
         deviceConfig: {
             kind: 'KIND_CPU',
@@ -1446,6 +1616,13 @@ function modelDetailApp() {
         rawConfig: '',
         showRawConfig: true,
         configCopied: false,
+        // Triton native config viewer
+        tritonConfig: null,
+        tritonConfigJson: '',
+        showTritonConfig: true,
+        loadingTritonConfig: false,
+        tritonConfigError: null,
+        tritonConfigCopied: false,
 
         get isLLM() {
             const name = this.modelName.toLowerCase();
@@ -1477,7 +1654,51 @@ function modelDetailApp() {
                 this.loadSamples(),
                 this.loadConfig(),
                 this.loadGpuMetrics(),
+                this.loadAuthStatus(),
+                this.loadTrivialConfig(),
             ]);
+        },
+
+        async loadAuthStatus() {
+            try {
+                const res = await fetch(buildUrl('/api/auth/status'));
+                if (res.ok) {
+                    this.authStatus = await res.json();
+                    this.authType = this.authStatus.auth_type || 'none';
+                }
+            } catch (error) {
+                console.error('Failed to load auth status:', error);
+            }
+        },
+
+        async updateAuth() {
+            try {
+                const payload = {
+                    auth_type: this.authType,
+                    token: this.bearerToken,
+                    api_key: this.apiKey,
+                };
+                const res = await fetch(buildUrl('/api/auth/settings'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.authMessage = data.message;
+                    this.authSuccess = true;
+                    await this.loadAuthStatus();
+                    // Clear message after 3 seconds
+                    setTimeout(() => { this.authMessage = ''; }, 3000);
+                } else {
+                    const error = await res.json();
+                    this.authMessage = error.detail || 'Failed to update auth';
+                    this.authSuccess = false;
+                }
+            } catch (error) {
+                this.authMessage = error.message;
+                this.authSuccess = false;
+            }
         },
 
         async loadModel() {
@@ -1715,6 +1936,40 @@ function modelDetailApp() {
                 this.configError = 'Unable to load model configuration: ' + error.message;
             }
             this.loadingConfig = false;
+        },
+
+        async loadTrivialConfig() {
+            this.loadingTritonConfig = true;
+            this.tritonConfigError = null;
+            try {
+                const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}/triton-config?namespace=${this.namespace}`));
+                if (res.ok) {
+                    const data = await res.json();
+                    this.tritonConfig = data;
+                    this.tritonConfigJson = JSON.stringify(data, null, 2);
+                    this.showTritonConfig = true;
+                } else if (res.status === 404) {
+                    this.tritonConfigError = 'Config not available — model must be loaded first';
+                } else {
+                    const err = await res.json();
+                    this.tritonConfigError = err.detail || 'Failed to fetch Triton config';
+                }
+            } catch (error) {
+                this.tritonConfigError = 'Request failed: ' + error.message;
+            }
+            this.loadingTritonConfig = false;
+        },
+
+        async copyTritonConfig() {
+            if (this.tritonConfigJson) {
+                try {
+                    await navigator.clipboard.writeText(this.tritonConfigJson);
+                    this.tritonConfigCopied = true;
+                    setTimeout(() => { this.tritonConfigCopied = false; }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy Triton config:', err);
+                }
+            }
         },
 
         async loadGpuMetrics() {

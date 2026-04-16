@@ -1,8 +1,39 @@
+# Headless service for StatefulSet - provides stable DNS names for each pod
+# Pods are addressable as: <pod-name>.<service-name>.<namespace>.svc.cluster.local
+# e.g., inference-server-0.inference-server-headless.domino-inference.svc.cluster.local
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.Values.env.name}}-headless
+  namespace: {{.Values.env.namespace}}
+  labels:
+    app: {{.Values.env.name}}
+spec:
+  clusterIP: None  # Headless service
+  selector:
+    app: {{.Values.env.name}}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+    - name: grpc
+      port: 8001
+      targetPort: 8001
+      protocol: TCP
+    - name: metrics
+      port: 8002
+      targetPort: 8002
+      protocol: TCP
+---
+# ClusterIP service for load-balanced access to Triton pods
 apiVersion: v1
 kind: Service
 metadata:
   name: {{.Values.env.name}}
   namespace: {{.Values.env.namespace}}
+  labels:
+    app: {{.Values.env.name}}
 spec:
   selector:
     app: {{.Values.env.name}}

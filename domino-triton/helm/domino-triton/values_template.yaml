@@ -1,0 +1,76 @@
+# Domino Triton Inference Server - Development Values
+#
+# Use this for development/testing deployments:
+#   helm upgrade domino-triton helm/domino-triton/ -n ${NAMESPACE} -f helm/domino-triton/values-dev.yaml
+
+env:
+  compute_namespace: domino-compute
+  namespace: domino-inference-dev
+  node_selector: default-gpu
+  memory: 12Gi
+  cores: 2
+  gpu: 1
+  name: triton-inference-server
+  type: domino-triton-inference
+  deployment_prefix: <DEPLOYMENT_PREFIX>  # User-specific deployment prefix
+
+# Proxy configuration
+proxy:
+  grpc_image: "quay.io/domino/domino-triton-grpc-proxy:v7"
+  http_image: "quay.io/domino/domino-triton-http-proxy:v7"
+  replicas: 2  # Multiple replicas for HA and load distribution
+
+  # Skip authentication for development
+  skip_auth: false
+  # Admin endpoint authorization
+  # If false: any authenticated user can call admin endpoints (load/unload models)
+  # If true: only Domino platform admins (isAdmin=true) can call admin endpoints
+  only_admin: false
+
+  # Timeouts
+  triton_timeout_secs: 300
+  model_load_timeout_secs: 300
+  model_unload_timeout_secs: 30
+  model_idle_timeout_secs: 300
+
+  # Resource allocation per container (both gRPC and HTTP proxies)
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+# Admin API configuration
+admin:
+  image: "quay.io/domino/domino-triton-admin:v7"
+  replicas: 1
+
+# Triton Inference Server configuration
+triton_inference_server:
+  image: "quay.io/domino/domino-triton-backend-vllm:v7"
+  replicas: 1
+
+# Persistence configuration
+# Directory structure: triton-repo/{models, weights, hf-cache}
+persistence:
+  s3:
+    bucket: <BUCKET_NAME>
+    region: "us-west-2"
+state:
+  image: "redis:7-alpine"
+  maxmemory: "128mb"
+  persistence:
+    size: "1Gi"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+# Istio service mesh configuration
+istio:
+  enabled: false

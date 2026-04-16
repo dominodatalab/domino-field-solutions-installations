@@ -29,6 +29,10 @@ class Settings:
     # Timeouts
     proxy_timeout_secs: float
 
+    # Local auth mode - allows UI to input Bearer token or API key
+    # Should be disabled in Helm deployments (production)
+    local_auth_mode: bool
+
 
 def load_settings() -> Settings:
     """Load settings from environment variables."""
@@ -43,6 +47,8 @@ def load_settings() -> Settings:
         results_path=os.getenv("RESULTS_PATH", str(app_dir / "results")),
         namespaces_file=os.getenv("NAMESPACES_FILE", str(app_dir / "namespaces.json")),
         proxy_timeout_secs=float(os.getenv("PROXY_TIMEOUT_SECS", "120.0")),
+        # Local auth mode enabled by default for local dev, disable in Helm
+        local_auth_mode=os.getenv("LOCAL_AUTH_MODE", "true").strip().lower() == "true",
     )
 
 
@@ -118,15 +124,56 @@ def get_model_repo_path(namespace: str) -> str:
     return f"/mnt/domino-inference-{namespace}-triton-repo-pvc/models"
 
 
-def get_auth_headers() -> dict:
+def get_auth_headers(override_token: str = None, override_api_key: str = None) -> dict:
     """Get authentication headers for proxy and admin API requests.
 
-    Returns X-Domino-Api-Key header which is accepted by both
-    the HTTP proxy and admin API for Domino authentication.
+    Auth resolution order:
+    1. override_token - Bearer token passed from UI (local auth mode)
+    2. override_api_key - API key passed from UI (local auth mode)
+    3. DOMINO_USER_TOKEN env var - Bearer token for testing
+    4. DOMINO_API_PROXY/access-token - Auto token fetch (inside Domino)
+    5. DOMINO_USER_API_KEY env var - API key fallback
+
+    Args:
+        override_token: Bearer token to use (from UI input)
+        override_api_key: API key to use (from UI input)
+
+    Returns:
+        Dict with appropriate auth header, or empty dict if no auth.
     """
+    import requests
+
+    # 1. Override token from UI
+    if override_token:
+        return {"Authorization": f"Bearer {override_token}"}
+
+    # 2. Override API key from UI
+    if override_api_key:
+        return {"X-Domino-Api-Key": override_api_key}
+
+    # 3. Check for manually set token (testing/development)
+    token = os.environ.get("DOMINO_USER_TOKEN")
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+
+    # 4. Try to fetch from DOMINO_API_PROXY/access-token (inside Domino)
+    api_proxy = os.environ.get("DOMINO_API_PROXY")
+    if api_proxy:
+        try:
+            url = f"{api_proxy.rstrip('/')}/access-token"
+            resp = requests.get(url, timeout=5.0)
+            if resp.status_code == 200:
+                fetched_token = resp.text.strip()
+                if fetched_token:
+                    return {"Authorization": f"Bearer {fetched_token}"}
+        except Exception:
+            pass  # Fall through to API key
+
+    # 5. Fall back to API key from environment
     api_key = os.environ.get("DOMINO_USER_API_KEY", "")
     if api_key:
         return {"X-Domino-Api-Key": api_key}
+
     return {}
 
 

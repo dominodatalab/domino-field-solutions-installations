@@ -11,7 +11,9 @@ Usage:
 Environment variables:
     TRITON_GRPC_URL  - gRPC proxy URL (default: localhost:50051)
     TRITON_REST_URL  - REST proxy URL (default: http://localhost:8080)
-    DOMINO_USER_API_KEY - API key for authentication
+    DOMINO_USER_TOKEN - Bearer token for authentication (manual testing)
+    DOMINO_API_PROXY - Domino API proxy URL for auto token fetch (inside Domino)
+    DOMINO_USER_API_KEY - API key fallback for authentication
 
 Requirements:
     pip install -r docker/requirements-client.txt
@@ -87,9 +89,11 @@ def main():
     print(f"\nConfiguration:")
     print(f"  GRPC URL: {GRPC_URL}")
     print(f"  REST URL: {REST_URL}")
-    print(f"  API Key:  {'Set' if os.environ.get('DOMINO_USER_API_KEY') else 'Not set'}")
-    print(f"  Samples:  {SAMPLES_DIR}")
-    print(f"  Results:  {RESULTS_DIR}")
+    print(f"  Token:     {'Set' if os.environ.get('DOMINO_USER_TOKEN') else 'Not set'}")
+    print(f"  API Proxy: {'Set' if os.environ.get('DOMINO_API_PROXY') else 'Not set'}")
+    print(f"  API Key:   {'Set' if os.environ.get('DOMINO_USER_API_KEY') else 'Not set'}")
+    print(f"  Samples:   {SAMPLES_DIR}")
+    print(f"  Results:   {RESULTS_DIR}")
 
     results = {}
     python = sys.executable

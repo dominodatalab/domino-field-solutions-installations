@@ -38,6 +38,10 @@ from pathlib import Path
 import numpy as np
 import requests
 
+# Add clients directory to path for auth_helper import
+sys.path.insert(0, str(Path(__file__).parent.parent / "clients"))
+from auth_helper import get_auth_headers
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -53,7 +57,7 @@ MODEL_RESULTS_DIR = RESULTS_BASE_DIR / "tinyllama"
 
 # Default configuration
 DEFAULT_REST_URL = os.environ.get("TRITON_REST_URL", "http://localhost:8080")
-DEFAULT_API_KEY = os.environ.get("DOMINO_USER_API_KEY")
+# Note: API key/token auth is now automatic via auth_helper
 
 # Models to benchmark
 MODELS = {
@@ -82,14 +86,21 @@ DEFAULT_PROMPTS = [
 
 
 class TinyLlamaBenchmark:
-    """Benchmark runner for TinyLlama models."""
+    """Benchmark runner for TinyLlama models.
 
-    def __init__(self, rest_url: str, api_key: str = None):
+    Authentication is handled automatically via auth_helper which prefers:
+    1. DOMINO_USER_TOKEN env var
+    2. DOMINO_API_PROXY/access-token endpoint (inside Domino)
+    3. DOMINO_USER_API_KEY env var
+    """
+
+    def __init__(self, rest_url: str):
         self.rest_url = rest_url.rstrip("/")
-        self.api_key = api_key
         self.headers = {"Content-Type": "application/json"}
-        if api_key:
-            self.headers["X-Domino-Api-Key"] = api_key
+        # Merge auth headers automatically
+        auth_headers = get_auth_headers()
+        if auth_headers:
+            self.headers.update(auth_headers)
 
         # Load tokenizer for TensorRT-LLM (requires tokenization)
         self.tokenizer = None
@@ -561,11 +572,10 @@ Examples:
         default=DEFAULT_REST_URL,
         help=f"REST proxy URL (default: {DEFAULT_REST_URL})"
     )
-    parser.add_argument(
-        "--api-key",
-        default=DEFAULT_API_KEY,
-        help="Domino API key (default: from DOMINO_USER_API_KEY env var)"
-    )
+    # Note: --api-key removed. Auth is now automatic via auth_helper which prefers:
+    # 1. DOMINO_USER_TOKEN env var
+    # 2. DOMINO_API_PROXY/access-token endpoint (inside Domino)
+    # 3. DOMINO_USER_API_KEY env var
     parser.add_argument(
         "--models",
         nargs="+",
@@ -609,7 +619,7 @@ Examples:
     logger.info(f"Report: {report_path}")
 
     # Run benchmarks
-    benchmark = TinyLlamaBenchmark(args.rest_url, args.api_key)
+    benchmark = TinyLlamaBenchmark(args.rest_url)
 
     benchmark_results = {
         "timestamp": datetime.now().isoformat(),

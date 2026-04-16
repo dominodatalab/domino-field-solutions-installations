@@ -1,7 +1,7 @@
 apiVersion: v2
 name: domino-triton
-version: 2.0.0
-appVersion: "2.0.0"
+version: 2.1.0
+appVersion: "2.1.0"
 description: Triton Inference Server with Domino authentication proxies (gRPC and REST)
 home: https://github.com/domino-field/domino-triton-inference
 keywords:

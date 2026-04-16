@@ -1,0 +1,1251 @@
+{% extends "base.html" %}
+
+{% block title %}Placement Management - Triton Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="placement-page" x-data="placementApp()" x-init="init()">
+    <div class="page-header">
+        <h2>Model Placement Management</h2>
+        <p class="page-description">Manage model placements across Triton pods for <strong x-text="namespace"></strong></p>
+    </div>
+
+    <!-- Overview Cards -->
+    <section class="overview-section">
+        <div class="overview-grid">
+            <div class="overview-card">
+                <div class="overview-value" x-text="overview.total_models_with_placement || 0"></div>
+                <div class="overview-label">Models with Placement</div>
+            </div>
+            <div class="overview-card">
+                <div class="overview-value">
+                    <span x-text="overview.healthy_pods || 0"></span>
+                    <span class="overview-secondary">/ <span x-text="overview.total_pods || 0"></span></span>
+                </div>
+                <div class="overview-label">Healthy Pods</div>
+            </div>
+            <div class="overview-card" :class="{ 'warning': overview.stale_placement_count > 0 }">
+                <div class="overview-value" x-text="overview.stale_placement_count || 0"></div>
+                <div class="overview-label">Stale Placements</div>
+            </div>
+            <div class="overview-card">
+                <div class="overview-value" x-text="recommendations.length || 0"></div>
+                <div class="overview-label">Recommendations</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stale Placements Warning -->
+    <section class="stale-warning" x-show="overview.stale_placement_count > 0 && overview.admin_available">
+        <div class="warning-header">
+            <div class="warning-icon">&#9888;</div>
+            <div class="warning-content">
+                <h4><span x-text="overview.stale_placement_count"></span> Stale Placement(s) Detected</h4>
+                <p>The following placements reference pods that no longer exist (possibly from scale-down):</p>
+            </div>
+        </div>
+        <div class="stale-list">
+            <template x-for="stale in overview.stale_placements || []" :key="stale.model + '-' + stale.pod">
+                <div class="stale-item">
+                    <span class="stale-model" x-text="stale.model"></span>
+                    <span class="stale-arrow">&#8594;</span>
+                    <span class="stale-pod" x-text="stale.pod"></span>
+                    <span class="stale-reason">(pod not found)</span>
+                </div>
+            </template>
+        </div>
+        <div class="stale-actions">
+            <button class="btn btn-warning" @click="cleanupStale()" :disabled="cleaningUp">
+                <span x-show="!cleaningUp">Clean Up Stale Placements</span>
+                <span x-show="cleaningUp">Cleaning...</span>
+            </button>
+        </div>
+        <div class="cleanup-result" x-show="cleanupResult">
+            <p :class="{ 'success': cleanupResult?.removed?.length > 0, 'error': cleanupResult?.failed?.length > 0 }"
+               x-text="cleanupResult?.message"></p>
+        </div>
+    </section>
+
+    <!-- Local Mode Notice -->
+    <section class="local-notice" x-show="overview.local_mode || !overview.admin_available">
+        <div class="notice-icon">&#9432;</div>
+        <div class="notice-content">
+            <h4>Local Development Mode</h4>
+            <p>
+                Pod management features require the Kubernetes Admin API which is not available in local development mode.
+                You can still view and manage placements below, but pod-level details and stale detection are unavailable.
+            </p>
+        </div>
+    </section>
+
+    <!-- Pod Status Grid -->
+    <section class="placement-section" x-show="overview.admin_available">
+        <div class="section-header">
+            <h3>Triton Pods</h3>
+            <button class="btn btn-secondary btn-sm" @click="refresh()" :disabled="loading">
+                <span x-show="!loading">Refresh</span>
+                <span x-show="loading">Loading...</span>
+            </button>
+        </div>
+
+        <div class="pods-grid" x-show="overview.pods && overview.pods.length > 0">
+            <template x-for="pod in overview.pods || []" :key="pod.name">
+                <div class="pod-card" :class="pod.status?.toLowerCase()">
+                    <div class="pod-header">
+                        <h4 x-text="pod.name"></h4>
+                        <span class="pod-status" :class="pod.status?.toLowerCase()" x-text="pod.status"></span>
+                    </div>
+                    <div class="pod-details">
+                        <div class="pod-detail">
+                            <span class="label">Models:</span>
+                            <span class="value" x-text="pod.model_count || 0"></span>
+                        </div>
+                        <div class="pod-detail" x-show="pod.pod_ip">
+                            <span class="label">IP:</span>
+                            <span class="value" x-text="pod.pod_ip"></span>
+                        </div>
+                        <div class="pod-detail" x-show="pod.node">
+                            <span class="label">Node:</span>
+                            <span class="value" x-text="pod.node?.split('.')[0]"></span>
+                        </div>
+                    </div>
+                    <div class="pod-models" x-show="pod.models && pod.models.length > 0">
+                        <h5>Loaded Models</h5>
+                        <div class="model-tags">
+                            <template x-for="model in pod.models" :key="model">
+                                <span class="model-tag" x-text="model"></span>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="pod-empty" x-show="!pod.models || pod.models.length === 0">
+                        <span class="empty-text">No model placements</span>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <div class="no-pods" x-show="(!overview.pods || overview.pods.length === 0) && !loading && overview.admin_available">
+            <p>No Triton pods found for this namespace.</p>
+        </div>
+    </section>
+
+    <!-- Placement Matrix (Kubernetes mode) -->
+    <section class="placement-section" x-show="overview.admin_available">
+        <div class="section-header">
+            <h3>Placement Matrix</h3>
+            <p class="section-hint">Click cells to add/remove placements. Pre-assign unloaded models before loading.</p>
+        </div>
+
+        <div class="matrix-container" x-show="(overview.all_models || []).length > 0">
+            <table class="placement-matrix">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Status</th>
+                        <template x-for="pod in overview.pods || []" :key="pod.name">
+                            <th x-text="pod.name"></th>
+                        </template>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="model in overview.all_models || []" :key="model.name">
+                        <tr :class="{ 'model-unloaded': model.state !== 'READY' }">
+                            <td class="model-name" x-text="model.name"></td>
+                            <td class="model-status">
+                                <span class="status-badge" :class="model.state === 'READY' ? 'loaded' : 'unloaded'"
+                                      x-text="model.state === 'READY' ? 'Loaded' : 'Unloaded'"></span>
+                            </td>
+                            <template x-for="pod in overview.pods || []" :key="pod.name">
+                                <td class="placement-cell">
+                                    <template x-if="model.placements.includes(pod.name)">
+                                        <span class="placement-indicator active" @click="removePlacement(model.name, pod.name)" title="Click to remove placement">&#10003;</span>
+                                    </template>
+                                    <template x-if="!model.placements.includes(pod.name) && pod.status === 'Running'">
+                                        <span class="placement-indicator inactive" @click="addPlacement(model.name, pod.name)" :title="model.state === 'READY' ? 'Click to add placement' : 'Pre-assign: model will load here'">+</span>
+                                    </template>
+                                    <template x-if="!model.placements.includes(pod.name) && pod.status !== 'Running'">
+                                        <span class="placement-indicator disabled">-</span>
+                                    </template>
+                                </td>
+                            </template>
+                            <td class="actions-cell">
+                                <template x-if="hasStaleForModel(model.name)">
+                                    <button class="btn btn-danger btn-xs" @click="cleanupModelStale(model.name)">
+                                        Remove Stale
+                                    </button>
+                                </template>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="no-placements" x-show="(overview.all_models || []).length === 0 && !loading">
+            <p>No models found in repository.</p>
+        </div>
+    </section>
+
+    <!-- Placements List (Local mode) -->
+    <section class="placement-section" x-show="!overview.admin_available">
+        <div class="section-header">
+            <h3>All Models</h3>
+            <button class="btn btn-secondary btn-sm" @click="refresh()" :disabled="loading">
+                <span x-show="!loading">Refresh</span>
+                <span x-show="loading">Loading...</span>
+            </button>
+        </div>
+
+        <div class="placements-list" x-show="(overview.all_models || []).length > 0">
+            <template x-for="model in overview.all_models || []" :key="model.name">
+                <div class="placement-item" :class="{ 'item-unloaded': model.state !== 'READY' }">
+                    <div class="placement-model">
+                        <span class="model-name" x-text="model.name"></span>
+                        <span class="status-badge" :class="model.state === 'READY' ? 'loaded' : 'unloaded'"
+                              x-text="model.state === 'READY' ? 'Loaded' : 'Unloaded'"></span>
+                    </div>
+                    <div class="placement-pods">
+                        <template x-if="model.placements.length > 0">
+                            <template x-for="pod in model.placements" :key="pod">
+                                <span class="pod-tag">
+                                    <span x-text="pod"></span>
+                                    <button class="remove-btn" @click="removePlacement(model.name, pod)" title="Remove placement">&times;</button>
+                                </span>
+                            </template>
+                        </template>
+                        <template x-if="model.placements.length === 0">
+                            <span class="no-placement-hint">No placement (uses default routing)</span>
+                        </template>
+                    </div>
+                    <div class="placement-actions">
+                        <button class="btn btn-secondary btn-xs" @click="openAddPlacementForModel(model.name)">
+                            + Add Pod
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <div class="no-placements" x-show="(overview.all_models || []).length === 0 && !loading">
+            <p>No models found in repository.</p>
+        </div>
+    </section>
+
+    <!-- Recommendations Panel -->
+    <section class="placement-section" x-show="recommendations.length > 0">
+        <div class="section-header">
+            <h3>Recommendations</h3>
+        </div>
+
+        <div class="recommendations-list">
+            <template x-for="rec in recommendations" :key="rec.model + '-' + rec.type">
+                <div class="recommendation-card" :class="rec.severity">
+                    <div class="rec-icon">
+                        <template x-if="rec.severity === 'warning'">&#9888;</template>
+                        <template x-if="rec.severity === 'info'">&#9432;</template>
+                        <template x-if="rec.severity === 'critical'">&#9888;</template>
+                    </div>
+                    <div class="rec-content">
+                        <div class="rec-type" x-text="formatRecType(rec.type)"></div>
+                        <p class="rec-message" x-text="rec.message"></p>
+                        <template x-if="rec.suggested_action && rec.suggested_action.action === 'add_placement'">
+                            <button class="btn btn-primary btn-sm"
+                                    @click="addPlacement(rec.model, rec.suggested_action.pod)"
+                                    :disabled="!rec.suggested_action.pod">
+                                Add to <span x-text="rec.suggested_action.pod"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </section>
+
+    <!-- Add Placement Modal -->
+    <div class="modal-overlay" x-show="showAddModal" x-cloak @click.self="closeAddModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4>Add Model Placement</h4>
+                <button class="modal-close" @click="closeAddModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Model:</label>
+                    <select x-model="addForm.model" class="form-select">
+                        <option value="">Select a model...</option>
+                        <template x-for="model in availableModels" :key="model">
+                            <option :value="model" x-text="model"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Pod:</label>
+                    <select x-model="addForm.pod" class="form-select">
+                        <option value="">Select a pod...</option>
+                        <template x-for="pod in runningPods" :key="pod">
+                            <option :value="pod" x-text="pod"></option>
+                        </template>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="closeAddModal()">Cancel</button>
+                <button class="btn btn-primary" @click="submitAddPlacement()" :disabled="!addForm.model || !addForm.pod">
+                    Add Placement
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Result Toast -->
+    <div class="toast-container" x-show="actionResult" x-cloak x-transition>
+        <div class="toast" :class="actionResult?.success ? 'success' : 'error'">
+            <span x-text="actionResult?.message"></span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.placement-page {
+    max-width: 1200px;
+}
+
+.page-description {
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+/* Overview Cards */
+.overview-section {
+    margin-bottom: 1.5rem;
+}
+
+.overview-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+.overview-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    text-align: center;
+    border: 1px solid var(--border-color);
+}
+
+.overview-card.warning {
+    border-color: var(--warning-color);
+    background: #fef3c7;
+}
+
+.dark .overview-card.warning {
+    background: #451a03;
+}
+
+.overview-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.overview-secondary {
+    font-size: 1rem;
+    color: var(--text-muted);
+}
+
+.overview-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+/* Local Mode Notice */
+.local-notice {
+    display: flex;
+    gap: 1rem;
+    background: #dbeafe;
+    border: 1px solid #3b82f6;
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.dark .local-notice {
+    background: #1e3a5f;
+    border-color: #3b82f6;
+}
+
+.local-notice .notice-icon {
+    font-size: 1.5rem;
+    color: #2563eb;
+    flex-shrink: 0;
+}
+
+.dark .local-notice .notice-icon {
+    color: #60a5fa;
+}
+
+.local-notice .notice-content h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    color: #1e40af;
+}
+
+.dark .local-notice .notice-content h4 {
+    color: #93c5fd;
+}
+
+.local-notice .notice-content p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #1e3a8a;
+    line-height: 1.5;
+}
+
+.dark .local-notice .notice-content p {
+    color: #bfdbfe;
+}
+
+/* Stale Warning Section */
+.stale-warning {
+    background: #fef3c7;
+    border: 1px solid #fbbf24;
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.dark .stale-warning {
+    background: #451a03;
+    border-color: #92400e;
+}
+
+.warning-header {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.warning-icon {
+    font-size: 1.5rem;
+    color: #d97706;
+}
+
+.dark .warning-icon {
+    color: #fbbf24;
+}
+
+.warning-content h4 {
+    margin: 0 0 0.25rem 0;
+    color: #92400e;
+}
+
+.dark .warning-content h4 {
+    color: #fbbf24;
+}
+
+.warning-content p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #78350f;
+}
+
+.dark .warning-content p {
+    color: #fef3c7;
+}
+
+.stale-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.stale-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background: rgba(0,0,0,0.05);
+    border-radius: var(--radius-sm);
+}
+
+.dark .stale-item {
+    background: rgba(255,255,255,0.05);
+}
+
+.stale-model {
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.stale-arrow {
+    color: var(--text-muted);
+}
+
+.stale-pod {
+    font-family: monospace;
+    color: var(--danger-color);
+}
+
+.stale-reason {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.stale-actions {
+    margin-top: 1rem;
+}
+
+.cleanup-result p {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+}
+
+.cleanup-result p.success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.cleanup-result p.error {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+/* Section Styling */
+.placement-section {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.section-hint {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+/* Pods Grid */
+.pods-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.pod-card {
+    background: var(--bg-color);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+    border-left: 3px solid var(--border-color);
+}
+
+.pod-card.running {
+    border-left-color: var(--success-color);
+}
+
+.pod-card.pending {
+    border-left-color: var(--warning-color);
+}
+
+.pod-card.failed {
+    border-left-color: var(--danger-color);
+}
+
+.pod-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.pod-header h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-family: monospace;
+}
+
+.pod-status {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.pod-status.running {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.pod-status.pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.pod-status.failed {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.pod-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+}
+
+.pod-detail .label {
+    color: var(--text-muted);
+}
+
+.pod-detail .value {
+    font-weight: 500;
+}
+
+.pod-models h5 {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.model-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.model-tag {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    background: var(--card-bg);
+    border-radius: var(--radius-sm);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.pod-empty {
+    padding: 0.5rem;
+    text-align: center;
+}
+
+.empty-text {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.no-pods, .no-placements {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+}
+
+.no-placements .hint {
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+}
+
+/* Local Mode Placements List */
+.placements-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.placement-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--bg-color);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.placement-model .model-name {
+    font-weight: 600;
+    font-family: monospace;
+    margin-right: 0.5rem;
+}
+
+.placement-item.item-unloaded {
+    opacity: 0.85;
+    background: var(--card-bg);
+}
+
+.placement-actions {
+    margin-left: auto;
+}
+
+.no-placement-hint {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.placement-pods {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.pod-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-family: monospace;
+}
+
+.pod-tag .remove-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1;
+    margin-left: 0.25rem;
+}
+
+.pod-tag .remove-btn:hover {
+    color: var(--danger-color);
+}
+
+/* Placement Matrix */
+.matrix-container {
+    overflow-x: auto;
+}
+
+.placement-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.placement-matrix th,
+.placement-matrix td {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.placement-matrix th {
+    background: var(--bg-color);
+    font-weight: 600;
+}
+
+.placement-matrix .model-name {
+    text-align: left;
+    font-weight: 500;
+    font-family: monospace;
+}
+
+.placement-matrix .model-status {
+    text-align: center;
+}
+
+.placement-matrix tr.model-unloaded {
+    background: var(--bg-color);
+    opacity: 0.85;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge.loaded {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-badge.unloaded {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.dark .status-badge.loaded {
+    background: #14532d;
+    color: #86efac;
+}
+
+.dark .status-badge.unloaded {
+    background: #374151;
+    color: #9ca3af;
+}
+
+.placement-cell {
+    min-width: 80px;
+}
+
+.placement-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.placement-indicator.active {
+    background: #dcfce7;
+    color: #166534;
+    font-weight: bold;
+}
+
+.placement-indicator.active:hover {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.placement-indicator.inactive {
+    background: var(--bg-color);
+    color: var(--text-muted);
+    border: 1px dashed var(--border-color);
+}
+
+.placement-indicator.inactive:hover {
+    background: #dbeafe;
+    color: var(--primary-color);
+    border-style: solid;
+}
+
+.placement-indicator.disabled {
+    background: var(--bg-color);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.actions-cell {
+    min-width: 100px;
+}
+
+.btn-xs {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+/* Recommendations */
+.recommendations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.recommendation-card {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--bg-color);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--border-color);
+}
+
+.recommendation-card.warning {
+    border-left-color: var(--warning-color);
+}
+
+.recommendation-card.info {
+    border-left-color: var(--primary-color);
+}
+
+.recommendation-card.critical {
+    border-left-color: var(--danger-color);
+}
+
+.rec-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.recommendation-card.warning .rec-icon {
+    color: var(--warning-color);
+}
+
+.recommendation-card.info .rec-icon {
+    color: var(--primary-color);
+}
+
+.rec-content {
+    flex: 1;
+}
+
+.rec-type {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.rec-message {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.875rem;
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h4 {
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 0;
+}
+
+.modal-close:hover {
+    color: var(--text-color);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.form-select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 0.875rem;
+}
+
+/* Toast */
+.toast-container {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 1001;
+}
+
+.toast {
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow);
+    font-size: 0.875rem;
+}
+
+.toast.success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #16a34a;
+}
+
+.toast.error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #dc2626;
+}
+
+/* Button Variants */
+.btn-warning {
+    background-color: var(--warning-color);
+    color: white;
+}
+
+.btn-warning:hover:not(:disabled) {
+    background-color: #b45309;
+}
+
+.btn-danger {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #b91c1c;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+@media (max-width: 768px) {
+    .overview-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .pods-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+function placementApp() {
+    return {
+        namespace: '{{ current_namespace }}',
+        loading: false,
+        overview: {
+            total_models_with_placement: 0,
+            total_pods: 0,
+            healthy_pods: 0,
+            stale_placement_count: 0,
+            placements: {},
+            stale_placements: [],
+            pods: []
+        },
+        recommendations: [],
+        cleaningUp: false,
+        cleanupResult: null,
+        showAddModal: false,
+        addForm: {
+            model: '',
+            pod: ''
+        },
+        actionResult: null,
+        actionTimeout: null,
+
+        get availableModels() {
+            // Return all model names from repository
+            return (this.overview.all_models || []).map(m => m.name);
+        },
+
+        get runningPods() {
+            return (this.overview.pods || [])
+                .filter(p => p.status === 'Running')
+                .map(p => p.name);
+        },
+
+        async init() {
+            await this.refresh();
+        },
+
+        async refresh() {
+            this.loading = true;
+            try {
+                await Promise.all([
+                    this.loadOverview(),
+                    this.loadRecommendations()
+                ]);
+            } catch (error) {
+                console.error('Failed to refresh:', error);
+            }
+            this.loading = false;
+        },
+
+        async loadOverview() {
+            try {
+                const res = await fetch(buildUrl(`/api/placement/overview?namespace=${this.namespace}`));
+                if (res.ok) {
+                    this.overview = await res.json();
+                } else {
+                    console.error('Failed to load overview');
+                }
+            } catch (error) {
+                console.error('Error loading overview:', error);
+            }
+        },
+
+        async loadRecommendations() {
+            try {
+                const res = await fetch(buildUrl(`/api/placement/recommendations?namespace=${this.namespace}`));
+                if (res.ok) {
+                    this.recommendations = await res.json();
+                }
+            } catch (error) {
+                console.error('Error loading recommendations:', error);
+            }
+        },
+
+        async cleanupStale() {
+            this.cleaningUp = true;
+            this.cleanupResult = null;
+            try {
+                const res = await fetch(buildUrl(`/api/placement/cleanup?namespace=${this.namespace}`), {
+                    method: 'POST'
+                });
+                if (res.ok) {
+                    this.cleanupResult = await res.json();
+                    await this.refresh();
+                } else {
+                    const error = await res.json();
+                    this.cleanupResult = { message: error.detail || 'Cleanup failed', failed: [{}] };
+                }
+            } catch (error) {
+                this.cleanupResult = { message: error.message, failed: [{}] };
+            }
+            this.cleaningUp = false;
+        },
+
+        hasStaleForModel(model) {
+            return (this.overview.stale_placements || []).some(s => s.model === model);
+        },
+
+        async cleanupModelStale(model) {
+            const staleForModel = (this.overview.stale_placements || []).filter(s => s.model === model);
+            for (const stale of staleForModel) {
+                await this.removePlacement(stale.model, stale.pod);
+            }
+            await this.refresh();
+        },
+
+        async addPlacement(model, pod) {
+            try {
+                const res = await fetch(
+                    buildUrl(`/api/placement/models/${encodeURIComponent(model)}/pods/${encodeURIComponent(pod)}?namespace=${this.namespace}`),
+                    { method: 'POST' }
+                );
+                if (res.ok) {
+                    this.showActionResult(true, `Added ${model} to ${pod}`);
+                    await this.refresh();
+                } else {
+                    const error = await res.json();
+                    this.showActionResult(false, error.detail || 'Failed to add placement');
+                }
+            } catch (error) {
+                this.showActionResult(false, error.message);
+            }
+        },
+
+        async removePlacement(model, pod) {
+            try {
+                const res = await fetch(
+                    buildUrl(`/api/placement/models/${encodeURIComponent(model)}/pods/${encodeURIComponent(pod)}?namespace=${this.namespace}`),
+                    { method: 'DELETE' }
+                );
+                if (res.ok) {
+                    this.showActionResult(true, `Removed ${model} from ${pod}`);
+                    await this.refresh();
+                } else {
+                    const error = await res.json();
+                    this.showActionResult(false, error.detail || 'Failed to remove placement');
+                }
+            } catch (error) {
+                this.showActionResult(false, error.message);
+            }
+        },
+
+        showActionResult(success, message) {
+            this.actionResult = { success, message };
+            if (this.actionTimeout) {
+                clearTimeout(this.actionTimeout);
+            }
+            this.actionTimeout = setTimeout(() => {
+                this.actionResult = null;
+            }, 3000);
+        },
+
+        openAddModal() {
+            this.addForm = { model: '', pod: '' };
+            this.showAddModal = true;
+        },
+
+        openAddPlacementForModel(modelName) {
+            this.addForm = { model: modelName, pod: '' };
+            this.showAddModal = true;
+        },
+
+        closeAddModal() {
+            this.showAddModal = false;
+        },
+
+        async submitAddPlacement() {
+            if (this.addForm.model && this.addForm.pod) {
+                await this.addPlacement(this.addForm.model, this.addForm.pod);
+                this.closeAddModal();
+            }
+        },
+
+        formatRecType(type) {
+            const typeMap = {
+                'single_point_of_failure': 'Single Point of Failure',
+                'no_placement': 'No Placement Recorded',
+                'unbalanced': 'Load Imbalance',
+                'underutilized_pod': 'Underutilized Pod'
+            };
+            return typeMap[type] || type.replace(/_/g, ' ');
+        }
+    };
+}
+</script>
+{% endblock %}

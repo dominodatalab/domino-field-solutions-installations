@@ -9,6 +9,10 @@ uvicorn[standard]>=0.24.0
 httpx>=0.25.0
 requests>=2.31.0
 
+# JWT Authentication (local validation with Keycloak)
+PyJWT>=2.8.0
+cryptography>=41.0.0
+
 # gRPC (gRPC proxy)
 grpcio>=1.59.0
 grpcio-tools>=1.59.0

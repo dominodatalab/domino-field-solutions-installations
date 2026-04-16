@@ -3,15 +3,17 @@
 YOLOv8n Video Inference Client (gRPC)
 
 Uses standard tritonclient.grpc library for Triton inference.
-Supports batching and annotated video output with bounding boxes.
+Supports batching, annotated video output, and async mode for concurrent requests.
 
 Usage:
     python yolov8n_video_grpc_client.py --video input.mp4 --output results.json
     python yolov8n_video_grpc_client.py --video input.mp4 --batch-size 4
     python yolov8n_video_grpc_client.py --video input.mp4 --output-video annotated.mp4
+    python yolov8n_video_grpc_client.py --video input.mp4 --async  # Async mode
 """
 
 import argparse
+import asyncio
 import json
 import logging
 import os
@@ -24,6 +26,8 @@ import cv2
 import numpy as np
 import tritonclient.grpc as grpcclient
 from tritonclient.utils import InferenceServerException
+
+from auth_helper import get_auth_headers
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -177,7 +181,7 @@ def extract_frames(video_path: str, fps: float = None, max_frames: int = None):
 
 
 def process_batch(client, headers, batch_data, results, times, conf_thres, video_writer=None):
-    """Process a batch of frames."""
+    """Process a batch of frames (sync version)."""
     if not batch_data:
         return 0  # Return payload size
 
@@ -263,20 +267,243 @@ def process_batch(client, headers, batch_data, results, times, conf_thres, video
         return 0
 
 
-def main():
-    parser = argparse.ArgumentParser(description="YOLOv8n Video Inference (gRPC)")
-    parser.add_argument("--video", "-v", required=True, help="Input video file")
-    parser.add_argument("--grpc-url", "-u",
-                        default=os.environ.get("TRITON_GRPC_URL", "localhost:50051"),
-                        help="gRPC URL (env: TRITON_GRPC_URL)")
-    parser.add_argument("--fps", "-f", type=float, help="Target FPS")
-    parser.add_argument("--max-frames", "-n", type=int, help="Max frames")
-    parser.add_argument("--batch-size", "-b", type=int, default=1, help="Batch size (default: 1)")
-    parser.add_argument("--conf-thres", "-c", type=float, default=0.25, help="Confidence threshold (default: 0.25)")
-    parser.add_argument("--output", "-o", default=str(RESULTS_DIR / "yolov8n_grpc.json"), help=f"Output JSON file (default: {RESULTS_DIR}/yolov8n_grpc.json)")
-    parser.add_argument("--output-video", default=str(RESULTS_DIR / "annotated_grpc.mp4"), help=f"Output annotated video file (default: {RESULTS_DIR}/annotated_grpc.mp4)")
-    args = parser.parse_args()
+# ==================== Async Implementation ====================
 
+
+async def process_batch_async(client, headers, batch_data, conf_thres):
+    """Process a batch of frames (async version). Returns (results, inference_time, payload_bytes)."""
+    import tritonclient.grpc.aio as grpcclient_aio
+
+    if not batch_data:
+        return [], 0, 0
+
+    batch_tensors = [d["tensor"] for d in batch_data]
+    batch_frame_nums = [d["frame_num"] for d in batch_data]
+
+    # Stack tensors into batch: [N, 3, 640, 640]
+    batch = np.stack(batch_tensors, axis=0).astype(np.float32)
+    batch = np.ascontiguousarray(batch)
+
+    payload_size_bytes = batch.nbytes
+
+    # Build input tensor
+    input_tensor = grpcclient_aio.InferInput("images", batch.shape, "FP32")
+    input_tensor.set_data_from_numpy(batch)
+
+    # Build output request
+    output_tensor = grpcclient_aio.InferRequestedOutput("output0")
+
+    start = time.time()
+    try:
+        response = await client.infer(
+            model_name="yolov8n",
+            inputs=[input_tensor],
+            outputs=[output_tensor],
+            headers=headers,
+        )
+        inference_time = time.time() - start
+        per_frame_time = inference_time / len(batch_data)
+
+        output = response.as_numpy("output0")
+        detections = postprocess_yolo(output, conf_thres)
+
+        frame_results = []
+        for frame_num, det, data in zip(batch_frame_nums, detections, batch_data):
+            boxes, scores, class_ids = det
+            boxes = scale_boxes(boxes, data["scale"], data["pad"], data["orig_shape"])
+
+            frame_result = {
+                "frame": frame_num,
+                "batch_size": len(batch_data),
+                "inference_ms": round(per_frame_time * 1000, 2),
+                "detections": len(boxes)
+            }
+
+            if len(boxes) > 0:
+                det_list = []
+                for box, score, cls_id in zip(boxes, scores, class_ids):
+                    det_list.append({
+                        "class": COCO_CLASSES[cls_id] if cls_id < len(COCO_CLASSES) else str(cls_id),
+                        "confidence": round(float(score), 3),
+                        "bbox": [round(float(x), 1) for x in box]
+                    })
+                frame_result["detection_details"] = det_list
+
+            frame_results.append((frame_result, data, boxes, scores, class_ids))
+
+        det_counts = [len(d[0]) for d in detections]
+        payload_mb = payload_size_bytes / (1024 * 1024)
+        logger.info(
+            f"Batch [{','.join(str(f) for f in batch_frame_nums)}]: "
+            f"inference={inference_time*1000:6.1f}ms, payload={payload_mb:.1f}MB, detections={det_counts}"
+        )
+
+        return frame_results, inference_time, payload_size_bytes
+
+    except Exception as e:
+        logger.error(f"Batch error: {e}")
+        error_results = []
+        for frame_num, data in zip(batch_frame_nums, batch_data):
+            error_results.append(({"frame": frame_num, "error": str(e)}, data, np.array([]), np.array([]), np.array([])))
+        return error_results, 0, 0
+
+
+async def run_async(args):
+    """Run inference in async mode with concurrent batch processing."""
+    import tritonclient.grpc.aio as grpcclient_aio
+
+    logger.info("Running in ASYNC mode")
+
+    # Setup video writer
+    video_writer = None
+    if args.output_video:
+        cap = cv2.VideoCapture(args.video)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+
+        Path(args.output_video).parent.mkdir(parents=True, exist_ok=True)
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        video_writer = cv2.VideoWriter(args.output_video, fourcc, fps, (width, height))
+        logger.info(f"Writing annotated video to: {args.output_video}")
+
+    # Create async Triton client
+    client = grpcclient_aio.InferenceServerClient(url=args.grpc_url)
+
+    # Build auth headers (token > DOMINO_API_PROXY > api_key)
+    headers = get_auth_headers()
+
+    results = {
+        "video": args.video,
+        "batch_size": args.batch_size,
+        "conf_thres": args.conf_thres,
+        "async_mode": True,
+        "frames": [],
+        "stats": {}
+    }
+    times = []
+    total_payload_bytes = 0
+
+    logger.info(f"Starting async inference via gRPC: {args.grpc_url}")
+    logger.info(f"Batch size: {args.batch_size}, Confidence threshold: {args.conf_thres}")
+    logger.info("-" * 60)
+
+    # Collect all batches first
+    batches = []
+    batch_data = []
+
+    for frame_num, frame in extract_frames(args.video, args.fps, args.max_frames):
+        tensor, scale, pad = preprocess_frame(frame)
+
+        batch_data.append({
+            "frame_num": frame_num,
+            "tensor": tensor,
+            "scale": scale,
+            "pad": pad,
+            "orig_frame": frame,
+            "orig_shape": frame.shape[:2]
+        })
+
+        if len(batch_data) >= args.batch_size:
+            batches.append(batch_data)
+            batch_data = []
+
+    if batch_data:
+        batches.append(batch_data)
+
+    # Process all batches concurrently
+    logger.info(f"Processing {len(batches)} batches concurrently...")
+
+    tasks = [
+        process_batch_async(client, headers, batch, args.conf_thres)
+        for batch in batches
+    ]
+
+    batch_results = await asyncio.gather(*tasks)
+
+    # Collect results (maintain frame order)
+    all_frame_results = []
+    for frame_results, inference_time, payload_bytes in batch_results:
+        if inference_time > 0:
+            times.append(inference_time)
+        total_payload_bytes += payload_bytes
+        all_frame_results.extend(frame_results)
+
+    # Sort by frame number and add to results
+    all_frame_results.sort(key=lambda x: x[0]["frame"])
+
+    for frame_result, data, boxes, scores, class_ids in all_frame_results:
+        results["frames"].append(frame_result)
+
+        # Draw on frame and write to video
+        if video_writer is not None and "error" not in frame_result:
+            annotated = draw_boxes(data["orig_frame"].copy(), boxes, scores, class_ids)
+            video_writer.write(annotated)
+
+    await client.close()
+
+    if video_writer is not None:
+        video_writer.release()
+        # Transcode to H.264
+        if args.output_video and shutil.which("ffmpeg"):
+            temp_file = args.output_video + ".temp.mp4"
+            try:
+                os.rename(args.output_video, temp_file)
+                result = subprocess.run(
+                    ["ffmpeg", "-i", temp_file, "-c:v", "libx264", "-preset", "fast",
+                     "-crf", "23", "-c:a", "copy", "-y", args.output_video],
+                    capture_output=True, text=True
+                )
+                if result.returncode == 0:
+                    os.remove(temp_file)
+                    logger.info("Video transcoded to H.264 for browser compatibility")
+                else:
+                    os.rename(temp_file, args.output_video)
+                    logger.warning(f"FFmpeg transcoding failed: {result.stderr}")
+            except Exception as e:
+                logger.warning(f"Failed to transcode video: {e}")
+                if os.path.exists(temp_file):
+                    os.rename(temp_file, args.output_video)
+
+    # Stats
+    total_frames = len(results["frames"])
+    total_detections = sum(f.get("detections", 0) for f in results["frames"])
+    total_payload_mb = total_payload_bytes / (1024 * 1024)
+    if times:
+        total_time = sum(times)
+        results["stats"] = {
+            "total_frames": total_frames,
+            "total_detections": total_detections,
+            "batch_size": args.batch_size,
+            "total_batches": len(times),
+            "total_time_sec": round(total_time, 2),
+            "total_payload_mb": round(total_payload_mb, 2),
+            "avg_batch_ms": round(np.mean(times) * 1000, 2),
+            "avg_frame_ms": round(total_time / total_frames * 1000, 2),
+            "fps": round(total_frames / total_time, 2),
+            "async_mode": True
+        }
+        logger.info("-" * 60)
+        logger.info(
+            f"Processed {total_frames} frames, {total_detections} detections, "
+            f"avg {results['stats']['avg_frame_ms']:.1f}ms/frame, "
+            f"total payload {total_payload_mb:.1f}MB, "
+            f"{results['stats']['fps']:.2f} FPS (async)"
+        )
+
+    if args.output:
+        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output, "w") as f:
+            json.dump(results, f, indent=2)
+        logger.info(f"Results saved to: {args.output}")
+
+    if args.output_video:
+        logger.info(f"Annotated video saved to: {args.output_video}")
+
+
+def run_sync(args):
+    """Run inference in sync mode (original implementation)."""
     # Setup video writer
     video_writer = None
     if args.output_video:
@@ -294,14 +521,14 @@ def main():
     # Create Triton client
     client = grpcclient.InferenceServerClient(url=args.grpc_url)
 
-    # Build auth headers
-    api_key = os.environ.get("DOMINO_USER_API_KEY")
-    headers = {"x-domino-api-key": api_key} if api_key else None
+    # Build auth headers (token > DOMINO_API_PROXY > api_key)
+    headers = get_auth_headers()
 
     results = {
         "video": args.video,
         "batch_size": args.batch_size,
         "conf_thres": args.conf_thres,
+        "async_mode": False,
         "frames": [],
         "stats": {}
     }
@@ -397,6 +624,27 @@ def main():
 
     if args.output_video:
         logger.info(f"Annotated video saved to: {args.output_video}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="YOLOv8n Video Inference (gRPC)")
+    parser.add_argument("--video", "-v", required=True, help="Input video file")
+    parser.add_argument("--grpc-url", "-u",
+                        default=os.environ.get("TRITON_GRPC_URL", "localhost:50051"),
+                        help="gRPC URL (env: TRITON_GRPC_URL)")
+    parser.add_argument("--fps", "-f", type=float, help="Target FPS")
+    parser.add_argument("--max-frames", "-n", type=int, help="Max frames")
+    parser.add_argument("--batch-size", "-b", type=int, default=1, help="Batch size (default: 1)")
+    parser.add_argument("--conf-thres", "-c", type=float, default=0.25, help="Confidence threshold (default: 0.25)")
+    parser.add_argument("--output", "-o", default=str(RESULTS_DIR / "yolov8n_grpc.json"), help=f"Output JSON file (default: {RESULTS_DIR}/yolov8n_grpc.json)")
+    parser.add_argument("--output-video", default=str(RESULTS_DIR / "annotated_grpc.mp4"), help=f"Output annotated video file (default: {RESULTS_DIR}/annotated_grpc.mp4)")
+    parser.add_argument("--async", dest="async_mode", action="store_true", help="Use async mode for concurrent batch processing")
+    args = parser.parse_args()
+
+    if args.async_mode:
+        asyncio.run(run_async(args))
+    else:
+        run_sync(args)
 
 
 if __name__ == "__main__":

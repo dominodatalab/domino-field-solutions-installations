@@ -6,6 +6,8 @@ These routes call the HTTP proxy API to manage models.
 import logging
 from typing import Any, Dict, List, Optional
 
+import asyncio
+
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -51,6 +53,9 @@ class DashboardModel(BaseModel):
     timeout_secs: Optional[float] = None
     is_custom_timeout: bool = False
     time_until_eviction_secs: Optional[float] = None
+    # Backend info (populated from Triton config for loaded models)
+    backend: Optional[str] = None
+    platform: Optional[str] = None
 
 
 class DashboardOverview(BaseModel):
@@ -106,6 +111,25 @@ class ResourceMetrics(BaseModel):
     inference: List[InferenceMetrics] = []
 
 
+# In-memory storage for local auth credentials (single-user dashboard)
+# Defined here so helper functions can access it
+_local_auth: Dict[str, str] = {
+    "auth_type": "none",  # "none", "bearer", "apikey"
+    "token": "",
+    "api_key": "",
+}
+
+
+def get_local_auth_headers() -> dict:
+    """Get auth headers with local auth override if set."""
+    if _local_auth["auth_type"] == "bearer" and _local_auth["token"]:
+        return get_auth_headers(override_token=_local_auth["token"])
+    elif _local_auth["auth_type"] == "apikey" and _local_auth["api_key"]:
+        return get_auth_headers(override_api_key=_local_auth["api_key"])
+    else:
+        return get_auth_headers()
+
+
 # Helper functions
 async def get_proxy_client(namespace: str) -> httpx.AsyncClient:
     """Create an HTTP client for the proxy."""
@@ -113,7 +137,7 @@ async def get_proxy_client(namespace: str) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         base_url=proxy_url,
         timeout=settings.proxy_timeout_secs,
-        headers=get_auth_headers(),
+        headers=get_local_auth_headers(),
     )
 
 
@@ -123,7 +147,7 @@ async def get_admin_client(namespace: str) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         base_url=admin_url,
         timeout=settings.proxy_timeout_secs,
-        headers=get_auth_headers(),
+        headers=get_local_auth_headers(),
     )
 
 
@@ -225,6 +249,20 @@ async def fetch_dashboard_overview(namespace: str) -> Optional[Dict[str, Any]]:
             return None
 
 
+async def fetch_triton_config(namespace: str, model_name: str) -> Optional[Dict[str, Any]]:
+    """Fetch model config from Triton's native /v2/models/{model}/config API.
+    Only available for loaded models. Returns backend, platform, inputs, outputs, etc.
+    """
+    async with await get_proxy_client(namespace) as client:
+        try:
+            response = await client.get(f"/v2/models/{model_name}/config")
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except httpx.HTTPError:
+            return None
+
+
 # API Endpoints
 @router.get("/api/dashboard/overview")
 async def get_overview(namespace: str = Query(default="local")):
@@ -267,10 +305,24 @@ async def get_models(namespace: str = Query(default="local")):
     """Get all models with their status."""
     models = await fetch_dashboard_models(namespace)
 
+    # Fetch Triton config for all loaded models in parallel to get backend/platform
+    loaded_names = [m["name"] for m in models if m.get("loaded")]
+    triton_configs = await asyncio.gather(
+        *[fetch_triton_config(namespace, name) for name in loaded_names],
+        return_exceptions=True,
+    )
+    config_by_name = {
+        name: cfg
+        for name, cfg in zip(loaded_names, triton_configs)
+        if isinstance(cfg, dict)
+    }
+
     result = []
     for model in models:
+        name = model.get("name", "")
+        cfg = config_by_name.get(name, {})
         dashboard_model = DashboardModel(
-            name=model.get("name", ""),
+            name=name,
             loaded=model.get("loaded", False),
             pinned=model.get("pinned", False),
             cordoned=model.get("cordoned", False),
@@ -282,6 +334,8 @@ async def get_models(namespace: str = Query(default="local")):
             timeout_secs=model.get("timeout_secs"),
             is_custom_timeout=model.get("is_custom_timeout", False),
             time_until_eviction_secs=model.get("time_until_eviction_secs"),
+            backend=cfg.get("backend") or cfg.get("platform") or None,
+            platform=cfg.get("platform") or None,
         )
         result.append(dashboard_model)
 
@@ -422,6 +476,29 @@ async def get_model_config(model_name: str, namespace: str = Query(default="loca
         raise HTTPException(status_code=500, detail=f"Failed to read config: {e}")
 
 
+@router.get("/api/dashboard/models/{model_name}/triton-config")
+async def get_model_triton_config(model_name: str, namespace: str = Query(default="local")):
+    """Get model configuration directly from Triton's native config API.
+    Works without the admin API. Only available for loaded models.
+    Returns the full parsed config: backend, platform, inputs, outputs, instance_group, parameters.
+    """
+    try:
+        async with await get_proxy_client(namespace) as client:
+            response = await client.get(f"/v2/models/{model_name}/config")
+            if response.status_code == 404:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Model '{model_name}' not found or not loaded"
+                )
+            response.raise_for_status()
+            return response.json()
+    except HTTPException:
+        raise
+    except httpx.HTTPError as e:
+        logger.error(f"Failed to get Triton config for {model_name}: {e}")
+        raise HTTPException(status_code=503, detail=f"Proxy unavailable: {e}")
+
+
 class ModelConfigUpdate(BaseModel):
     """Model config update request."""
     kind: Optional[str] = None  # KIND_CPU or KIND_GPU (None=don't change)
@@ -551,9 +628,9 @@ async def dashboard_page(request: Request, namespace: str = Query(default=None))
     current_ns = namespace or namespaces_config.get("default", "local")
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
-            "request": request,
             "current_namespace": current_ns,
             "namespaces": namespaces_config.get("deployments", []),
         },
@@ -575,11 +652,75 @@ async def model_detail_page(
     current_ns = namespace or namespaces_config.get("default", "local")
 
     return templates.TemplateResponse(
+        request,
         "model_detail.html",
         {
-            "request": request,
             "model_name": model_name,
             "current_namespace": current_ns,
             "namespaces": namespaces_config.get("deployments", []),
         },
     )
+
+
+# =============================================================================
+# Local Auth Mode API
+#
+# Allows users to provide Bearer token or API key via the UI for testing.
+# This is intended for local development only and should be disabled in
+# production (Helm deployments) by setting LOCAL_AUTH_MODE=false.
+# =============================================================================
+
+class LocalAuthSettings(BaseModel):
+    """Local auth settings request/response."""
+    auth_type: str  # "none", "bearer", "apikey"
+    token: Optional[str] = ""
+    api_key: Optional[str] = ""
+
+
+class LocalAuthStatus(BaseModel):
+    """Local auth mode status."""
+    enabled: bool
+    auth_type: str
+    has_token: bool
+    has_api_key: bool
+
+
+@router.get("/api/auth/status")
+async def get_local_auth_status() -> LocalAuthStatus:
+    """Get local auth mode status."""
+    return LocalAuthStatus(
+        enabled=settings.local_auth_mode,
+        auth_type=_local_auth["auth_type"],
+        has_token=bool(_local_auth["token"]),
+        has_api_key=bool(_local_auth["api_key"]),
+    )
+
+
+@router.post("/api/auth/settings")
+async def set_local_auth_settings(auth_settings: LocalAuthSettings) -> dict:
+    """Set local auth credentials (only works when LOCAL_AUTH_MODE=true)."""
+    if not settings.local_auth_mode:
+        raise HTTPException(
+            status_code=403,
+            detail="Local auth mode is disabled. Set LOCAL_AUTH_MODE=true to enable."
+        )
+
+    _local_auth["auth_type"] = auth_settings.auth_type
+    _local_auth["token"] = auth_settings.token or ""
+    _local_auth["api_key"] = auth_settings.api_key or ""
+
+    return {
+        "success": True,
+        "auth_type": _local_auth["auth_type"],
+        "message": f"Auth set to {_local_auth['auth_type']}"
+    }
+
+
+@router.delete("/api/auth/settings")
+async def clear_local_auth_settings() -> dict:
+    """Clear local auth credentials."""
+    _local_auth["auth_type"] = "none"
+    _local_auth["token"] = ""
+    _local_auth["api_key"] = ""
+
+    return {"success": True, "message": "Auth credentials cleared"}

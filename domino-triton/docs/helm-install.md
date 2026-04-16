@@ -473,7 +473,7 @@ export env=dev
 export NAMESPACE=domino-inference-${env}
 
 #kubectl create namespace $NAMESPACE
-#kubectl label namespace $$NAMESPACE domino-compute=true domino-triton=true  
+kubectl label namespace $NAMESPACE domino-compute=true domino-triton=true  
 helm install domino-triton helm/domino-triton/ \
     -n ${NAMESPACE} \
     -f helm/domino-triton/values-${env}.yaml

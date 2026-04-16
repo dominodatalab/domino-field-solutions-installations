@@ -20,6 +20,59 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
+# Cache for access token
+_cached_token: Optional[str] = None
+
+
+async def get_domino_access_token() -> Optional[str]:
+    """Fetch access token from Domino API proxy."""
+    global _cached_token
+
+    import os
+    api_proxy = os.environ.get("DOMINO_API_PROXY", "")
+    if not api_proxy:
+        logger.debug("DOMINO_API_PROXY not set, skipping token fetch")
+        return None
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{api_proxy}/access-token")
+            response.raise_for_status()
+            # The endpoint returns raw JWT token, not JSON
+            token = response.text.strip()
+            if token:
+                _cached_token = token
+                logger.debug("Fetched Domino access token")
+            return token
+    except Exception as e:
+        logger.warning(f"Failed to fetch Domino access token: {e}")
+        return _cached_token
+
+
+async def get_auth_headers_async() -> dict:
+    """Get authentication headers for API requests.
+
+    Priority:
+    1. DOMINO_USER_API_KEY env var -> X-Domino-Api-Key header
+    2. Access token from DOMINO_API_PROXY -> Authorization Bearer header
+    """
+    import os
+
+    # First, try DOMINO_USER_API_KEY
+    api_key = os.environ.get("DOMINO_USER_API_KEY", "").strip()
+    if api_key:
+        logger.debug("Using DOMINO_USER_API_KEY for auth")
+        return {"X-Domino-Api-Key": api_key}
+
+    # Fall back to access token from DOMINO_API_PROXY
+    token = await get_domino_access_token()
+    if token:
+        logger.debug("Using Bearer token for auth")
+        return {"Authorization": f"Bearer {token}"}
+
+    logger.warning("No authentication available")
+    return {}
+
 # Templates will be set by server.py
 templates: Optional[Jinja2Templates] = None
 
@@ -81,10 +134,11 @@ async def get_admin_client(namespace: str) -> httpx.AsyncClient:
             status_code=400,
             detail=f"No admin URL configured for namespace: {namespace}"
         )
+    headers = await get_auth_headers_async()
     return httpx.AsyncClient(
         base_url=admin_url,
         timeout=30.0,
-        headers=get_auth_headers(),
+        headers=headers,
     )
 
 
@@ -407,6 +461,125 @@ async def update_resources_with_scale(
             step="error",
             error=str(e),
         )
+
+
+# =====================
+# Proxy Deployment Endpoints
+# =====================
+
+
+@router.get("/proxy/status")
+async def get_proxy_status(namespace: str = Query(default="local")):
+    """Get the status of the proxy deployment."""
+    try:
+        async with await get_admin_client(namespace) as client:
+            response = await client.get("/v1/deployments/proxy/status")
+            response.raise_for_status()
+            data = response.json()
+
+            return {
+                "deployment": data.get("deployment"),
+                "namespace": data.get("namespace"),
+                "replicas": data.get("deployment_replicas", {}),
+                "overall_status": data.get("overall_status"),
+            }
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=503, detail=f"Admin API unavailable: {e}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/proxy/scale")
+async def scale_proxy(
+    request: ScaleRequest,
+    namespace: str = Query(default="local"),
+):
+    """Scale the proxy deployment."""
+    if request.replicas < 1:
+        raise HTTPException(status_code=400, detail="Proxy replicas must be >= 1")
+
+    if request.replicas > 20:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot scale beyond 20 replicas without admin approval"
+        )
+
+    try:
+        async with await get_admin_client(namespace) as client:
+            response = await client.post(
+                "/v1/deployments/proxy/scale",
+                json={"replicas": request.replicas},
+            )
+            response.raise_for_status()
+
+            return ScaleResponse(
+                success=True,
+                message=f"Proxy scaled to {request.replicas} replicas",
+                desired_replicas=request.replicas,
+            )
+    except httpx.HTTPStatusError as e:
+        return ScaleResponse(
+            success=False,
+            message=f"Failed to scale proxy: {e.response.text}",
+        )
+    except httpx.HTTPError as e:
+        return ScaleResponse(
+            success=False,
+            message=f"Admin API unavailable: {e}",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        return ScaleResponse(
+            success=False,
+            message=str(e),
+        )
+
+
+@router.get("/proxy/resources")
+async def get_proxy_resources(namespace: str = Query(default="local")):
+    """Get resource requests and limits for the proxy deployment."""
+    try:
+        async with await get_admin_client(namespace) as client:
+            response = await client.get("/v1/deployments/proxy/resources")
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=503, detail=f"Admin API unavailable: {e}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/proxy/resources")
+async def update_proxy_resources(
+    request: UpdateResourcesRequest,
+    namespace: str = Query(default="local"),
+):
+    """Update resource requests and limits for the proxy deployment."""
+    try:
+        async with await get_admin_client(namespace) as client:
+            response = await client.patch(
+                "/v1/deployments/proxy/resources",
+                json=request.model_dump(exclude_none=True),
+            )
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=503, detail=f"Admin API unavailable: {e}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/health")

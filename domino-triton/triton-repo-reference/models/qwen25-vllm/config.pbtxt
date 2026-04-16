@@ -1,0 +1,65 @@
+# ==============================================================================
+# Qwen2.5-7B-Instruct via Triton vLLM Backend
+# ==============================================================================
+# Same Triton config shape as tinyllama-vllm — the model-specific settings
+# (tokenizer mode, context length, guided decoding backend) live in model.json.
+#
+# To load:
+#   curl -X POST http://localhost:8080/v2/repository/models/qwen25-vllm/load
+#
+# To infer:
+#   python scripts/clients/llm_vllm_grpc_client.py \
+#     --model qwen25-vllm \
+#     --prompt "What is the capital of France?" \
+#     --apply-chat-template
+# ==============================================================================
+
+name: "qwen25-vllm"
+backend: "vllm"
+
+max_batch_size: 0
+
+model_transaction_policy {
+  decoupled: true
+}
+
+input [
+  {
+    name: "text_input"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "stream"
+    data_type: TYPE_BOOL
+    dims: [ 1 ]
+    optional: true
+  },
+  {
+    name: "sampling_parameters"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+    optional: true
+  },
+  {
+    name: "exclude_input_in_output"
+    data_type: TYPE_BOOL
+    dims: [ 1 ]
+    optional: true
+  }
+]
+
+output [
+  {
+    name: "text_output"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  }
+]
+
+instance_group [
+  {
+    kind: KIND_MODEL
+    count: 1
+  }
+]

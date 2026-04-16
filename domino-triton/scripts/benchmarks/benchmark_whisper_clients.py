@@ -29,6 +29,10 @@ from pathlib import Path
 import numpy as np
 import requests
 
+# Add clients directory to path for auth_helper import
+sys.path.insert(0, str(Path(__file__).parent.parent / "clients"))
+from auth_helper import get_auth_headers
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -50,22 +54,25 @@ DEFAULT_REST_URL = os.environ.get("TRITON_REST_URL", "http://localhost:8080")
 MODEL_NAME = "whisper-tiny-python"
 
 
-def warmup_model(rest_url: str, model_name: str, api_key: str = None) -> bool:
+def warmup_model(rest_url: str, model_name: str) -> bool:
     """
     Warm up a model by checking if it's ready.
 
     Args:
         rest_url: REST proxy URL (e.g., http://localhost:8080)
         model_name: Name of the model to warm up
-        api_key: Optional Domino API key for authentication
 
     Returns:
         True if model is ready, False otherwise
+
+    Note:
+        Authentication is handled automatically via auth_helper which prefers:
+        1. DOMINO_USER_TOKEN env var
+        2. DOMINO_API_PROXY/access-token endpoint (inside Domino)
+        3. DOMINO_USER_API_KEY env var
     """
     url = f"{rest_url.rstrip('/')}/v2/models/{model_name}/ready"
-    headers = {}
-    if api_key:
-        headers["X-Domino-Api-Key"] = api_key
+    headers = get_auth_headers() or {}
 
     logger.info(f"Checking if model '{model_name}' is ready...")
 
@@ -114,7 +121,7 @@ def run_client(
     audio_dir: str = None
 ) -> dict:
     """
-    Run a client script and capture its results.
+    Run a client script and stream its output in real-time.
 
     Args:
         script_name: Name of the client script
@@ -147,20 +154,42 @@ def run_client(
 
     try:
         start_time = datetime.now()
-        result = subprocess.run(
+        # Use Popen to stream output in real-time while capturing stderr for errors
+        process = subprocess.Popen(
             cmd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=600  # 10 minute timeout
+            bufsize=1  # Line-buffered
         )
+
+        # Stream stdout in real-time
+        stderr_lines = []
+        while True:
+            # Read stdout line by line
+            stdout_line = process.stdout.readline()
+            if stdout_line:
+                print(f"    {stdout_line.rstrip()}")
+
+            # Check if process has finished
+            if process.poll() is not None:
+                # Read remaining stdout
+                for line in process.stdout:
+                    print(f"    {line.rstrip()}")
+                # Read all stderr
+                stderr_lines = process.stderr.readlines()
+                break
+
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
 
-        if result.returncode != 0:
-            logger.error(f"  Failed: {result.stderr[-500:] if result.stderr else 'Unknown error'}")
+        stderr_output = "".join(stderr_lines)
+
+        if process.returncode != 0:
+            logger.error(f"  Failed: {stderr_output[-500:] if stderr_output else 'Unknown error'}")
             return {
                 "success": False,
-                "error": result.stderr[-500:] if result.stderr else "Unknown error",
+                "error": stderr_output[-500:] if stderr_output else "Unknown error",
                 "duration": duration
             }
 
@@ -181,6 +210,7 @@ def run_client(
             }
 
     except subprocess.TimeoutExpired:
+        process.kill()
         logger.error(f"  Timeout after 10 minutes")
         return {
             "success": False,
@@ -420,15 +450,20 @@ Output files (in same directory as report):
         default=DEFAULT_REST_URL,
         help=f"REST proxy URL for model preloading (default: {DEFAULT_REST_URL})"
     )
-    parser.add_argument(
-        "--api-key",
-        default=os.environ.get("DOMINO_USER_API_KEY"),
-        help="Domino API key (default: from DOMINO_USER_API_KEY env var)"
-    )
+    # Note: --api-key removed. Auth is now automatic via auth_helper which prefers:
+    # 1. DOMINO_USER_TOKEN env var
+    # 2. DOMINO_API_PROXY/access-token endpoint (inside Domino)
+    # 3. DOMINO_USER_API_KEY env var
     parser.add_argument(
         "--skip-preload",
         action="store_true",
         help="Skip model warmup (not recommended for accurate benchmarks)"
+    )
+    parser.add_argument(
+        "--async",
+        dest="async_mode",
+        action="store_true",
+        help="Use async mode for gRPC client (concurrent file processing)"
     )
 
     args = parser.parse_args()
@@ -487,7 +522,7 @@ Output files (in same directory as report):
     # Warmup model to ensure fair benchmark timing (auto-loads via inference)
     if not args.skip_preload:
         logger.info("")
-        warmup_model(args.rest_url, MODEL_NAME, args.api_key)
+        warmup_model(args.rest_url, MODEL_NAME)
     else:
         logger.info("")
         logger.info("Skipping model warmup (--skip-preload specified)")
@@ -509,10 +544,16 @@ Output files (in same directory as report):
 
         output_path = json_dir / client["output"]
 
+        # Build extra args, adding --async for gRPC clients if requested
+        extra_args = list(client.get("args") or [])
+        if args.async_mode and "grpc" in client["script"]:
+            extra_args.append("--async")
+            logger.info(f"    (async mode enabled)")
+
         result = run_client(
             script_name=client["script"],
             output_path=str(output_path),
-            extra_args=client.get("args"),
+            extra_args=extra_args,
             audio_files=audio_files,
             audio_dir=audio_dir
         )

@@ -17,13 +17,25 @@ spec:
         app: {{ .Values.env.name }}-state
         type: {{ .Values.env.type }}
     spec:
+      securityContext:
+        fsGroup: 999
+      initContainers:
+      - name: init-permissions
+        image: busybox:1.36
+        command: ['sh', '-c', 'chown -R 999:999 /data']
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        securityContext:
+          runAsUser: 0
       containers:
       - name: redis
         image: {{ .Values.state.image | default "redis:7-alpine" }}
         args:
           - redis-server
-          - --save ""
-          - --appendonly no
+          - --dir /data
+          - --appendonly yes
+          - --appendfsync everysec
           - --maxmemory {{ .Values.state.maxmemory | default "128mb" }}
           - --maxmemory-policy noeviction
         ports:
@@ -36,6 +48,9 @@ spec:
           limits:
             cpu: {{ .Values.state.resources.limits.cpu | default "500m" | quote }}
             memory: {{ .Values.state.resources.limits.memory | default "256Mi" | quote }}
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
         livenessProbe:
           exec:
             command: ["redis-cli", "ping"]
@@ -53,3 +68,7 @@ spec:
           capabilities:
             drop:
               - ALL
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: {{ .Values.env.name }}-state-pvc

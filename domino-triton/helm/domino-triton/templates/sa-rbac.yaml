@@ -10,17 +10,22 @@ metadata:
   name: {{ .Values.env.name }}-admin-role
   namespace: {{ .Values.env.namespace }}
 rules:
-  # Existing: control the Deployment + scale subresource
+  # Control Deployments (proxy) + scale subresource
   - apiGroups: ["apps"]
     resources: ["deployments", "deployments/scale"]
     verbs: ["get", "list", "watch", "patch", "update"]
 
-  # NEW: list/get/watch pods for status + selecting a pod for logs
+  # Control StatefulSets (Triton inference server) + scale subresource
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "statefulsets/scale"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+
+  # List/get/watch pods for status + selecting a pod for logs
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
 
-  # NEW: read logs from pods
+  # Read logs from pods
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]

@@ -344,6 +344,18 @@ body {
     color: #fef3c7;
 }
 
+.badge.backend {
+    background-color: #ede9fe;
+    color: #5b21b6;
+    text-transform: none;
+    font-size: 0.65rem;
+}
+
+.dark .badge.backend {
+    background-color: #4c1d95;
+    color: #ede9fe;
+}
+
 .model-info {
     font-size: 0.875rem;
     color: var(--text-muted);

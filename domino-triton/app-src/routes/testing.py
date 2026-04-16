@@ -17,7 +17,8 @@ from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from config import settings, get_proxy_url, get_auth_headers
+from config import settings, get_proxy_url
+from routes.dashboard import get_local_auth_headers
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,20 @@ MODEL_INPUT_TYPES: Dict[str, Dict[str, Any]] = {
         "input_types": ["text"],
         "description": "Text generation model (TinyLlama TensorRT-LLM)",
         "client_script": "llm_text_grpc_client.py",
+        "result_type": "generation",
+        "supports_model_arg": True,
+    },
+    "tinyllama-vllm": {
+        "input_types": ["text"],
+        "description": "Text generation model (TinyLlama vLLM backend)",
+        "client_script": "llm_vllm_grpc_client.py",
+        "result_type": "generation",
+        "supports_model_arg": True,
+    },
+    "qwen25-vllm": {
+        "input_types": ["text"],
+        "description": "Text generation model (Qwen2.5-0.5B vLLM backend)",
+        "client_script": "llm_vllm_grpc_client.py",
         "result_type": "generation",
         "supports_model_arg": True,
     },
@@ -237,7 +252,7 @@ async def fetch_model_type_from_triton(model_name: str, namespace: str) -> Optio
     """Fetch model_types or model_type parameter from Triton model config."""
     proxy_url = get_proxy_url(namespace)
 
-    async with httpx.AsyncClient(base_url=proxy_url, timeout=10.0, headers=get_auth_headers()) as client:
+    async with httpx.AsyncClient(base_url=proxy_url, timeout=10.0, headers=get_local_auth_headers()) as client:
         try:
             # Try to get model config from Triton
             response = await client.get(f"/v2/models/{model_name}/config")
@@ -714,7 +729,7 @@ async def run_direct_inference(
     model_config = MODEL_INPUT_TYPES.get(model_name, {})
     result_type = model_config.get("result_type", "text")
 
-    async with httpx.AsyncClient(base_url=proxy_url, timeout=120.0, headers=get_auth_headers()) as client:
+    async with httpx.AsyncClient(base_url=proxy_url, timeout=120.0, headers=get_local_auth_headers()) as client:
         try:
             if request.input_type == "text":
                 # For text models, use the generate endpoint if available
@@ -748,11 +763,23 @@ async def run_direct_inference(
                     )
 
                 response.raise_for_status()
+                resp_json = response.json()
+                # Normalize vLLM /generate response (returns text_output) into
+                # the generations format the frontend expects
+                if "text_output" in resp_json:
+                    prompt = request.text or (request.texts[0] if request.texts else "")
+                    result_data = {
+                        "generations": [
+                            {"prompt": prompt, "generated_text": resp_json["text_output"]}
+                        ]
+                    }
+                else:
+                    result_data = resp_json
                 return TestInferResponse(
                     model=model_name,
                     input_type=request.input_type,
                     success=True,
-                    result=response.json(),
+                    result=result_data,
                     result_type=result_type,
                 )
             else:

@@ -27,6 +27,7 @@
                 <a href="{{ root_path }}/" class="nav-link {% if request.url.path == '/' or request.url.path == root_path + '/' %}active{% endif %}">Dashboard</a>
                 <a href="{{ root_path }}/results-page" class="nav-link {% if '/results' in request.url.path %}active{% endif %}">Results</a>
                 <a href="{{ root_path }}/admin" class="nav-link {% if '/admin' in request.url.path %}active{% endif %}">Admin</a>
+                <a href="{{ root_path }}/placement" class="nav-link {% if '/placement' in request.url.path %}active{% endif %}">Placement</a>
                 <a href="{{ root_path }}/architecture" class="nav-link {% if '/architecture' in request.url.path %}active{% endif %}">Architecture</a>
                 <a href="{{ root_path }}/presentation" class="nav-link {% if '/presentation' in request.url.path %}active{% endif %}">Presentation</a>
             </nav>

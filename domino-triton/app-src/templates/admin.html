@@ -40,10 +40,10 @@
         </div>
     </div>
 
-    <!-- Status Section -->
+    <!-- Triton Status Section -->
     <section class="admin-section">
         <div class="section-header">
-            <h3>Deployment Status</h3>
+            <h3>Triton Deployment Status</h3>
             <button class="btn btn-secondary btn-sm" @click="refresh()" :disabled="loading">
                 <span x-show="!loading">Refresh</span>
                 <span x-show="loading">Loading...</span>
@@ -115,9 +115,9 @@
         </div>
     </section>
 
-    <!-- Scaling Section -->
+    <!-- Triton Scaling Section -->
     <section class="admin-section">
-        <h3>Scaling</h3>
+        <h3>Triton Scaling</h3>
         <div class="scaling-controls">
             <div class="scale-buttons">
                 <button class="btn btn-secondary" @click="scale(Math.max(0, currentReplicas - 1))" :disabled="scaling || currentReplicas <= 0">
@@ -142,10 +142,10 @@
         </div>
     </section>
 
-    <!-- Resources Section -->
+    <!-- Triton Resources Section -->
     <section class="admin-section">
         <div class="section-header">
-            <h3>Container Resources</h3>
+            <h3>Triton Container Resources</h3>
             <button class="btn btn-secondary btn-sm" @click="loadResources()" :disabled="loadingResources">
                 Refresh
             </button>
@@ -321,10 +321,10 @@
         </div>
     </section>
 
-    <!-- Pods Detail Section -->
+    <!-- Triton Pods Detail Section -->
     <section class="admin-section">
         <div class="section-header">
-            <h3>Pod Details</h3>
+            <h3>Triton Pod Details</h3>
             <button class="btn btn-secondary btn-sm" @click="loadPods()" :disabled="loadingPods">
                 Refresh
             </button>
@@ -372,17 +372,91 @@
         </div>
     </section>
 
-    <!-- Actions Section -->
+    <!-- Triton Actions Section -->
     <section class="admin-section">
-        <h3>Actions</h3>
+        <h3>Triton Actions</h3>
         <div class="action-buttons">
             <button class="btn btn-warning" @click="restartDeployment()" :disabled="restarting">
-                <span x-show="!restarting">Rolling Restart</span>
+                <span x-show="!restarting">Rolling Restart Triton</span>
                 <span x-show="restarting">Restarting...</span>
             </button>
         </div>
+        <p class="action-hint">Triggers a rolling restart of the Triton Inference Server StatefulSet.</p>
         <div class="action-result" x-show="actionResult">
             <p :class="{ 'success': actionResult?.success, 'error': !actionResult?.success }" x-text="actionResult?.message"></p>
+        </div>
+    </section>
+
+    <!-- Proxy Deployment Section -->
+    <section class="admin-section">
+        <div class="section-header">
+            <h3>Proxy Deployment</h3>
+            <button class="btn btn-secondary btn-sm" @click="loadProxyStatus()" :disabled="loadingProxy">
+                <span x-show="!loadingProxy">Refresh</span>
+                <span x-show="loadingProxy">Loading...</span>
+            </button>
+        </div>
+
+        <div class="status-overview" x-show="proxyStatus">
+            <div class="status-badge" :class="proxyStatus.overall_status?.toLowerCase()">
+                <span x-text="proxyStatus.overall_status || 'Unknown'"></span>
+            </div>
+            <div class="status-details">
+                <div class="status-item">
+                    <span class="label">Deployment:</span>
+                    <span class="value" x-text="proxyStatus.deployment"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="replica-status" x-show="proxyStatus.replicas">
+            <h4>Replicas</h4>
+            <div class="replica-grid">
+                <div class="replica-item">
+                    <span class="replica-value" x-text="proxyStatus.replicas?.desired_replicas ?? '-'"></span>
+                    <span class="replica-label">Desired</span>
+                </div>
+                <div class="replica-item">
+                    <span class="replica-value" x-text="proxyStatus.replicas?.ready_replicas ?? '-'"></span>
+                    <span class="replica-label">Ready</span>
+                </div>
+                <div class="replica-item">
+                    <span class="replica-value" x-text="proxyStatus.replicas?.available_replicas ?? '-'"></span>
+                    <span class="replica-label">Available</span>
+                </div>
+                <div class="replica-item">
+                    <span class="replica-value" x-text="proxyStatus.replicas?.updated_replicas ?? '-'"></span>
+                    <span class="replica-label">Updated</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="scaling-controls" style="margin-top: 1rem;">
+            <h4>Scaling</h4>
+            <div class="scale-buttons">
+                <button class="btn btn-secondary" @click="scaleProxy(Math.max(1, proxyCurrentReplicas - 1))" :disabled="proxyScaling || proxyCurrentReplicas <= 1">
+                    - Scale Down
+                </button>
+                <div class="scale-input-group">
+                    <input type="number" x-model.number="proxyTargetReplicas" min="1" max="20" class="scale-input">
+                    <button class="btn btn-primary" @click="scaleProxy(proxyTargetReplicas)" :disabled="proxyScaling">
+                        <span x-show="!proxyScaling">Set Replicas</span>
+                        <span x-show="proxyScaling">Scaling...</span>
+                    </button>
+                </div>
+                <button class="btn btn-secondary" @click="scaleProxy(proxyCurrentReplicas + 1)" :disabled="proxyScaling || proxyCurrentReplicas >= 20">
+                    Scale Up +
+                </button>
+            </div>
+            <p class="scale-hint">Current: <strong x-text="proxyCurrentReplicas"></strong> replicas (minimum 1)</p>
+        </div>
+
+        <div class="scale-result" x-show="proxyScaleResult">
+            <p :class="{ 'success': proxyScaleResult?.success, 'error': !proxyScaleResult?.success }" x-text="proxyScaleResult?.message"></p>
+        </div>
+
+        <div class="error-message" x-show="proxyError">
+            <p x-text="proxyError"></p>
         </div>
     </section>
 </div>
@@ -845,6 +919,13 @@
     gap: 0.5rem;
 }
 
+.action-hint {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+}
+
 .btn-warning {
     background-color: var(--warning-color);
     color: white;
@@ -1171,9 +1252,20 @@ function adminApp() {
             containerName: null,
             statusMessage: '',
         },
+        // Proxy state
+        proxyStatus: {},
+        proxyError: null,
+        loadingProxy: false,
+        proxyScaling: false,
+        proxyTargetReplicas: 2,
+        proxyScaleResult: null,
 
         get currentReplicas() {
             return this.status.replicas?.desired_replicas ?? 0;
+        },
+
+        get proxyCurrentReplicas() {
+            return this.proxyStatus.replicas?.desired_replicas ?? 0;
         },
 
         async init() {
@@ -1188,6 +1280,7 @@ function adminApp() {
                     this.loadStatus(),
                     this.loadResources(),
                     this.loadPods(),
+                    this.loadProxyStatus(),
                 ]);
             } catch (error) {
                 this.statusError = error.message;
@@ -1304,6 +1397,47 @@ function adminApp() {
                 this.scaleResult = { success: false, message: error.message };
             }
             this.scaling = false;
+        },
+
+        async loadProxyStatus() {
+            this.loadingProxy = true;
+            this.proxyError = null;
+            try {
+                const res = await fetch(buildUrl(`/api/admin/proxy/status?namespace=${this.namespace}`));
+                if (res.ok) {
+                    this.proxyStatus = await res.json();
+                    this.proxyTargetReplicas = this.proxyStatus.replicas?.desired_replicas ?? 2;
+                } else {
+                    const error = await res.json();
+                    this.proxyError = error.detail || 'Failed to load proxy status';
+                }
+            } catch (error) {
+                this.proxyError = error.message;
+            }
+            this.loadingProxy = false;
+        },
+
+        async scaleProxy(replicas) {
+            if (replicas < 1) {
+                this.proxyScaleResult = { success: false, message: 'Proxy requires at least 1 replica' };
+                return;
+            }
+            this.proxyScaling = true;
+            this.proxyScaleResult = null;
+            try {
+                const res = await fetch(buildUrl(`/api/admin/proxy/scale?namespace=${this.namespace}`), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ replicas }),
+                });
+                this.proxyScaleResult = await res.json();
+                if (this.proxyScaleResult.success) {
+                    setTimeout(() => this.loadProxyStatus(), 2000);
+                }
+            } catch (error) {
+                this.proxyScaleResult = { success: false, message: error.message };
+            }
+            this.proxyScaling = false;
         },
 
         async updateResources(containerName) {

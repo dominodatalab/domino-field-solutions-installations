@@ -1,0 +1,17 @@
+{
+    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+
+    "disable_log_requests": true,
+    "gpu_memory_utilization": 0.65,
+    "tensor_parallel_size": 1,
+    "dtype": "auto",
+
+    "max_model_len": 128,
+
+    "tokenizer_mode": "auto",
+
+    "guided_decoding_backend": "outlines",
+
+    "enforce_eager": true,
+    "max_num_seqs": 1
+}

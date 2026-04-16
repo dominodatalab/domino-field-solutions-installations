@@ -13,7 +13,12 @@ tokenizers>=0.14.0
 sentencepiece>=0.1.99
 
 # ONNX Runtime integration for HuggingFace models
-optimum[onnxruntime]>=1.13.0
+# Pin <2.0.0: optimum 2.x removed nn.Module inheritance from ORTModel classes,
+# breaking ORTModelForSpeechSeq2Seq (whisper) and ORTModelForSequenceClassification.
+optimum[onnxruntime]>=1.13.0,<2.0.0
+
+# Required by smollm and other models using device_map / low_cpu_mem_usage
+accelerate>=0.26.0
 
 # Data science essentials
 # Pin numpy<2 for compatibility with torch in TRT-LLM image

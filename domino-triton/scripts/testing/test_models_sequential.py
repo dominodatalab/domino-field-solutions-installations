@@ -17,6 +17,7 @@ Usage:
     python scripts/testing/test_models_sequential.py --models bert-base-uncased yolov8n
     python scripts/testing/test_models_sequential.py --skip-benchmark
     python scripts/testing/test_models_sequential.py --skip-copy
+    python scripts/testing/test_models_sequential.py --async
 
 Environment Variables (set before running or edit CONFIGURATION section):
     TRITON_REST_URL - REST proxy URL
@@ -178,7 +179,7 @@ def run_client_test(model_name: str, config: dict) -> bool:
     return run_command(cmd, f"Testing {model_name} client", timeout=180)
 
 
-def run_benchmark(model_name: str, config: dict) -> bool:
+def run_benchmark(model_name: str, config: dict, async_mode: bool = False) -> bool:
     """Run the benchmark for a model."""
     benchmark_script = config.get("benchmark")
     if not benchmark_script or not Path(benchmark_script).exists():
@@ -186,7 +187,9 @@ def run_benchmark(model_name: str, config: dict) -> bool:
         return True
 
     cmd = [sys.executable, benchmark_script] + config.get("benchmark_args", [])
-    return run_command(cmd, f"Benchmarking {model_name}", timeout=600)
+    if async_mode:
+        cmd.append("--async")
+    return run_command(cmd, f"Benchmarking {model_name}" + (" (async)" if async_mode else ""), timeout=600)
 
 
 def get_model_status() -> None:
@@ -216,6 +219,9 @@ Examples:
 
   # Skip copy step (models already on EDV)
   python scripts/testing/test_models_sequential.py --skip-copy
+
+  # Run benchmarks with async gRPC (concurrent processing)
+  python scripts/testing/test_models_sequential.py --async
 
   # List available models
   python scripts/testing/test_models_sequential.py --list
@@ -258,6 +264,12 @@ Examples:
         action="store_true",
         help="List available models and exit",
     )
+    parser.add_argument(
+        "--async",
+        dest="async_mode",
+        action="store_true",
+        help="Use async mode for gRPC benchmarks (concurrent processing)",
+    )
 
     args = parser.parse_args()
 
@@ -293,6 +305,7 @@ Examples:
         print(f"Instance kind: KIND_GPU (device={args.device})")
     print(f"Skip copy: {args.skip_copy}")
     print(f"Skip benchmark: {args.skip_benchmark}")
+    print(f"Async mode: {args.async_mode}")
 
     print("\nSetting up environment variables:")
     setup_environment()
@@ -341,7 +354,7 @@ Examples:
 
         # Step 4: Run benchmark
         if not args.skip_benchmark:
-            model_results["benchmark"] = run_benchmark(model_name, config)
+            model_results["benchmark"] = run_benchmark(model_name, config, async_mode=args.async_mode)
         else:
             print(f"\n[SKIP] Benchmark for {model_name}")
             model_results["benchmark"] = "skipped"

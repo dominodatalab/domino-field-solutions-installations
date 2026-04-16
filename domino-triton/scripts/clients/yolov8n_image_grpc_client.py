@@ -23,6 +23,8 @@ import numpy as np
 import tritonclient.grpc as grpcclient
 from tritonclient.utils import InferenceServerException
 
+from auth_helper import get_auth_headers
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -244,9 +246,8 @@ def main():
     # Create client
     client = grpcclient.InferenceServerClient(url=args.grpc_url)
 
-    # Build auth headers
-    api_key = os.environ.get("DOMINO_USER_API_KEY")
-    headers = {"x-domino-api-key": api_key} if api_key else None
+    # Build auth headers (token > DOMINO_API_PROXY > api_key)
+    headers = get_auth_headers()
 
     results = {
         "model": "yolov8n",

@@ -137,11 +137,15 @@ docker compose down -v
 ### Build Docker Images
 
 ```bash
-export VERSION=v4
+export VERSION=v7
 
 # Triton Backend
 docker buildx build --platform=linux/amd64 -f ./Dockerfile.triton \
   -t quay.io/domino/domino-triton-backend:${VERSION} --push .
+
+# Triton vLLM Backend
+docker buildx build --platform=linux/amd64 -f ./Dockerfile.triton.vllm \
+  -t quay.io/domino/domino-triton-backend-vllm:${VERSION} --push .
 
 # gRPC Proxy
 docker buildx build --platform=linux/amd64 -f ./Dockerfile.proxy.grpc \

@@ -1,0 +1,70 @@
+name: "jsonformer-example"
+backend: "python"
+max_batch_size: 0
+
+input [
+  {
+    name: "prompt"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "max_tokens"
+    data_type: TYPE_INT32
+    dims: [ -1 ]
+    optional: true
+  },
+  {
+    name: "temperature"
+    data_type: TYPE_FP32
+    dims: [ -1 ]
+    optional: true
+  },
+  {
+    name: "schema_name"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+    optional: true
+  }
+]
+
+output [
+  {
+    name: "generated_text"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "token_count"
+    data_type: TYPE_INT32
+    dims: [ -1 ]
+  }
+]
+
+instance_group [
+  {
+    kind: KIND_CPU
+    count: 1
+  }
+]
+
+# Model type for dashboard UI
+parameters {
+  key: "model_type"
+  value: { string_value: "text-llm" }
+}
+
+parameters {
+  key: "model_id"
+  value: { string_value: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" }
+}
+
+parameters {
+  key: "max_length"
+  value: { string_value: "2048" }
+}
+
+parameters {
+  key: "default_max_tokens"
+  value: { string_value: "256" }
+}

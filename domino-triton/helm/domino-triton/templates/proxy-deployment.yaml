@@ -17,6 +17,9 @@ spec:
         app: {{ .Values.env.name }}-proxy
         type: {{ .Values.env.type }}
         nucleus-client: "true"
+        {{- if .Values.proxy.jwt.enabled }}
+        keycloak-client: "true"
+        {{- end }}
     spec:
       containers:
       # ----------------------------------------------------
@@ -37,6 +40,13 @@ spec:
           value: "{{ .Values.env.name }}:8001"
         - name: TRITON_HTTP_URL
           value: "http://{{ .Values.env.name }}:8000"
+        # Pod-specific routing for StatefulSet (deterministic, no randomness)
+        - name: TRITON_HTTP_URL_PATTERN
+          value: "http://{pod}.{{ .Values.env.name }}-headless.{{ .Values.env.namespace }}.svc.cluster.local:8000"
+        - name: TRITON_GRPC_URL_PATTERN
+          value: "{pod}.{{ .Values.env.name }}-headless.{{ .Values.env.namespace }}.svc.cluster.local:8001"
+        - name: TRITON_DEFAULT_POD
+          value: "{{ .Values.env.name }}-0"
         - name: DOMINO_HOST
           value: "http://nucleus-frontend.domino-platform:80"
         - name: PROXY_HOST
@@ -60,6 +70,16 @@ spec:
         {{- if .Values.proxy.only_admin }}
         - name: ONLY_ADMIN
           value: "true"
+        {{- end }}
+        {{- if .Values.proxy.jwt.enabled }}
+        - name: JWKS_URL
+          value: {{ .Values.proxy.jwt.jwks_url | quote }}
+        - name: JWT_ISSUER
+          value: {{ .Values.proxy.jwt.issuer | quote }}
+        {{- if .Values.proxy.jwt.audience }}
+        - name: JWT_AUDIENCE
+          value: {{ .Values.proxy.jwt.audience | quote }}
+        {{- end }}
         {{- end }}
         ports:
         - containerPort: 50051
@@ -102,6 +122,13 @@ spec:
           value: "{{ .Values.env.name }}:8001"
         - name: TRITON_METRICS_URL
           value: "http://{{ .Values.env.name }}:8002"
+        # Pod-specific routing for StatefulSet (deterministic, no randomness)
+        - name: TRITON_HTTP_URL_PATTERN
+          value: "http://{pod}.{{ .Values.env.name }}-headless.{{ .Values.env.namespace }}.svc.cluster.local:8000"
+        - name: TRITON_GRPC_URL_PATTERN
+          value: "{pod}.{{ .Values.env.name }}-headless.{{ .Values.env.namespace }}.svc.cluster.local:8001"
+        - name: TRITON_DEFAULT_POD
+          value: "{{ .Values.env.name }}-0"
         - name: DOMINO_HOST
           value: "http://nucleus-frontend.domino-platform:80"
         - name: PROXY_HOST
@@ -125,6 +152,16 @@ spec:
         {{- if .Values.proxy.only_admin }}
         - name: ONLY_ADMIN
           value: "true"
+        {{- end }}
+        {{- if .Values.proxy.jwt.enabled }}
+        - name: JWKS_URL
+          value: {{ .Values.proxy.jwt.jwks_url | quote }}
+        - name: JWT_ISSUER
+          value: {{ .Values.proxy.jwt.issuer | quote }}
+        {{- if .Values.proxy.jwt.audience }}
+        - name: JWT_AUDIENCE
+          value: {{ .Values.proxy.jwt.audience | quote }}
+        {{- end }}
         {{- end }}
         ports:
         - containerPort: 8080

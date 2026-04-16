@@ -26,6 +26,8 @@ import numpy as np
 import tritonclient.http as httpclient
 from tritonclient.utils import InferenceServerException
 
+from auth_helper import get_auth_headers
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -198,8 +200,8 @@ def main():
     client = httpclient.InferenceServerClient(url=url)
 
     # Build auth headers
-    api_key = os.environ.get("DOMINO_USER_API_KEY")
-    headers = {"X-Domino-Api-Key": api_key} if api_key else None
+    # Build auth headers (token > DOMINO_API_PROXY > api_key)
+    headers = get_auth_headers()
 
     use_binary = not args.use_json
     encoding_mode = "JSON" if args.use_json else "Binary"

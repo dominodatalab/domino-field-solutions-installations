@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from routes import dashboard, testing, admin
+from routes import dashboard, testing, admin, placement
 from config import settings, load_namespaces
 
 # Get root path for reverse proxy support (Domino apps)
@@ -62,6 +62,10 @@ tags_metadata = [
     {
         "name": "Admin",
         "description": "Kubernetes admin operations (scale, namespace management).",
+    },
+    {
+        "name": "Placement",
+        "description": "Model placement management across Triton pods.",
     },
     {
         "name": "Results",
@@ -125,6 +129,7 @@ if templates_dir.exists():
     dashboard.set_templates(templates)
     testing.set_templates(templates)
     admin.set_templates(templates)
+    placement.set_templates(templates)
 
 # Mount results directory for viewing benchmark reports
 # Use configured results_path from settings (respects RESULTS_PATH env var)
@@ -137,6 +142,7 @@ if results_dir.exists():
 app.include_router(dashboard.router)
 app.include_router(testing.router)
 app.include_router(admin.router)
+app.include_router(placement.router)
 
 
 # HTML page routes
@@ -148,9 +154,9 @@ async def results_page(request: Request):
     """Render the benchmark results page."""
     namespaces_config = load_namespaces()
     return templates.TemplateResponse(
+        request,
         "results.html",
         {
-            "request": request,
             "current_namespace": namespaces_config.get("default", "local"),
             "namespaces": namespaces_config.get("deployments", []),
         },
@@ -164,9 +170,9 @@ async def view_result_page(request: Request, path: str):
     filename = Path(path).name
     namespaces_config = load_namespaces()
     return templates.TemplateResponse(
+        request,
         "markdown_viewer.html",
         {
-            "request": request,
             "filename": filename,
             "path": path,
             "current_namespace": namespaces_config.get("default", "local"),
@@ -180,9 +186,9 @@ async def architecture_page(request: Request):
     """Render the system architecture documentation page."""
     namespaces_config = load_namespaces()
     return templates.TemplateResponse(
+        request,
         "architecture.html",
         {
-            "request": request,
             "current_namespace": namespaces_config.get("default", "local"),
             "namespaces": namespaces_config.get("deployments", []),
         },
@@ -194,9 +200,9 @@ async def presentation_page(request: Request):
     """Render the technical presentation page."""
     namespaces_config = load_namespaces()
     return templates.TemplateResponse(
+        request,
         "presentation.html",
         {
-            "request": request,
             "current_namespace": namespaces_config.get("default", "local"),
             "namespaces": namespaces_config.get("deployments", []),
         },
@@ -209,9 +215,24 @@ async def admin_page(request: Request, namespace: str = Query(default=None)):
     namespaces_config = load_namespaces()
     current_ns = namespace or namespaces_config.get("default", "local")
     return templates.TemplateResponse(
+        request,
         "admin.html",
         {
-            "request": request,
+            "current_namespace": current_ns,
+            "namespaces": namespaces_config.get("deployments", []),
+        },
+    )
+
+
+@app.get("/placement", response_class=HTMLResponse)
+async def placement_page(request: Request, namespace: str = Query(default=None)):
+    """Render the placement management page."""
+    namespaces_config = load_namespaces()
+    current_ns = namespace or namespaces_config.get("default", "local")
+    return templates.TemplateResponse(
+        request,
+        "placement.html",
+        {
             "current_namespace": current_ns,
             "namespaces": namespaces_config.get("deployments", []),
         },
