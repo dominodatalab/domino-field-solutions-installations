@@ -56,15 +56,15 @@ Usage:
 """
 
 import argparse
+import asyncio
 import json
 import logging
 import os
-import queue
 import time
 from typing import Optional
 
 import numpy as np
-import tritonclient.grpc as grpcclient
+import tritonclient.grpc.aio as grpcclient
 from tritonclient.utils import InferenceServerException
 
 from auth_helper import get_auth_headers
@@ -218,7 +218,7 @@ def _build_inputs(
     return [text_input, stream_input, sampling_input, exclude_input]
 
 
-def infer_non_streaming(
+async def infer_non_streaming(
     client: grpcclient.InferenceServerClient,
     headers: dict,
     model: str,
@@ -230,6 +230,8 @@ def infer_non_streaming(
     guided_regex: Optional[str] = None,
     guided_choice: Optional[str] = None,
 ) -> dict:
+    # vLLM uses decoupled transaction policy — ModelInfer RPC is not supported.
+    # Use stream_infer() with a single-item async generator (same as notebook).
     inputs = _build_inputs(
         prompt, max_tokens=max_tokens, temperature=temperature, top_p=top_p,
         stream=False,
@@ -237,20 +239,26 @@ def infer_non_streaming(
     )
     outputs = [grpcclient.InferRequestedOutput("text_output")]
 
+    async def request_iterator():
+        yield {"model_name": model, "inputs": inputs, "outputs": outputs}
+
     start = time.time()
-    response = client.infer(
-        model_name=model, inputs=inputs, outputs=outputs, headers=headers,
-    )
+    full_text = []
+    async for result, error in client.stream_infer(request_iterator(), headers=headers):
+        if error:
+            raise error
+        token = result.as_numpy("text_output")[0]
+        if isinstance(token, bytes):
+            token = token.decode("utf-8")
+        full_text.append(token)
+        if token == "":  # vLLM sends empty string to signal end of stream
+            break
+
     elapsed = time.time() - start
-
-    text = response.as_numpy("text_output")[0]
-    if isinstance(text, bytes):
-        text = text.decode("utf-8")
-
-    return {"prompt": prompt, "generated_text": text, "inference_ms": round(elapsed * 1000, 2)}
+    return {"prompt": prompt, "generated_text": "".join(full_text), "inference_ms": round(elapsed * 1000, 2)}
 
 
-def infer_streaming(
+async def infer_streaming(
     client: grpcclient.InferenceServerClient,
     headers: dict,
     model: str,
@@ -269,38 +277,25 @@ def infer_streaming(
     )
     outputs = [grpcclient.InferRequestedOutput("text_output")]
 
-    result_queue: queue.Queue = queue.Queue()
-
-    def callback(result, error):
-        result_queue.put(error if error else result)
+    async def request_iterator():
+        yield {"model_name": model, "inputs": inputs, "outputs": outputs}
 
     start = time.time()
-    client.start_stream(callback=callback, headers=headers)
+    full_text = []
+    print("Streaming: ", end="", flush=True)
 
-    try:
-        client.async_stream_infer(model_name=model, inputs=inputs, outputs=outputs)
+    async for result, error in client.stream_infer(request_iterator(), headers=headers):
+        if error:
+            raise error
+        token = result.as_numpy("text_output")[0]
+        if isinstance(token, bytes):
+            token = token.decode("utf-8")
+        print(token, end="", flush=True)
+        full_text.append(token)
+        if token == "":  # vLLM sends empty string to signal end of stream
+            break
 
-        full_text = []
-        print("Streaming: ", end="", flush=True)
-
-        while True:
-            item = result_queue.get(timeout=60)
-            if isinstance(item, Exception):
-                raise item
-
-            token = item.as_numpy("text_output")[0]
-            if isinstance(token, bytes):
-                token = token.decode("utf-8")
-            print(token, end="", flush=True)
-            full_text.append(token)
-
-            if token == "":  # vLLM sends empty string to signal end of stream
-                break
-
-        print()
-    finally:
-        client.stop_stream()
-
+    print()
     return {
         "prompt": prompt,
         "generated_text": "".join(full_text),
@@ -372,6 +367,8 @@ def main():
              "Example: '[\"positive\",\"negative\",\"neutral\"]'",
     )
 
+    parser.add_argument("--output", help="Write JSON result to this file path")
+
     args = parser.parse_args()
 
     # Optionally apply chat template
@@ -386,7 +383,6 @@ def main():
         logger.debug(f"Formatted prompt:\n{prompt}")
 
     headers = get_auth_headers()
-    client = grpcclient.InferenceServerClient(url=args.grpc_url)
 
     logger.info(f"Model: {args.model} | URL: {args.grpc_url}")
     if args.guided_json:
@@ -398,6 +394,12 @@ def main():
 
     logger.info("-" * 60)
 
+    asyncio.run(_run(args, prompt, headers))
+
+
+async def _run(args, prompt, headers):
+    client = grpcclient.InferenceServerClient(url=args.grpc_url)
+
     infer_kwargs = dict(
         client=client, headers=headers, model=args.model, prompt=prompt,
         max_tokens=args.max_tokens, temperature=args.temperature, top_p=args.top_p,
@@ -408,18 +410,25 @@ def main():
 
     try:
         if args.stream:
-            result = infer_streaming(**infer_kwargs)
+            result = await infer_streaming(**infer_kwargs)
         else:
-            result = infer_non_streaming(**infer_kwargs)
+            result = await infer_non_streaming(**infer_kwargs)
             logger.info(f"Response: {result['generated_text']}")
 
         logger.info(f"Inference time: {result['inference_ms']:.0f}ms")
+
+        if args.output:
+            import pathlib
+            pathlib.Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+            with open(args.output, "w") as f:
+                json.dump(result, f, indent=2)
+            logger.info(f"Result written to {args.output}")
 
     except InferenceServerException as e:
         logger.error(f"Triton error: {e}")
         raise
     finally:
-        client.close()
+        await client.close()
 
 
 if __name__ == "__main__":
