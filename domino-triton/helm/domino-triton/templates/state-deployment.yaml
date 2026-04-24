@@ -21,7 +21,7 @@ spec:
         fsGroup: 999
       initContainers:
       - name: init-permissions
-        image: busybox:1.36
+        image: {{ .Values.state.busybox_image | default "busybox:1.36" }}
         command: ['sh', '-c', 'chown -R 999:999 /data']
         volumeMounts:
         - name: redis-data

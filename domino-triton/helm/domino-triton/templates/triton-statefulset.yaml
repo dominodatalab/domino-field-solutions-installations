@@ -26,6 +26,7 @@ spec:
         security.istio.io/tlsMode: "istio"
 
     spec:
+      serviceAccountName: {{ .Values.env.name }}-sa
       {{- if .Values.env.node_selector }}
       nodeSelector:
         dominodatalab.com/node-pool: {{ .Values.env.node_selector }}

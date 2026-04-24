@@ -1,0 +1,117 @@
+# Domino Triton Inference Server - Helm Values
+#
+# This chart deploys Triton Inference Server with Domino authentication proxies.
+# The proxies are compatible with standard tritonclient.grpc and tritonclient.http libraries.
+
+env:
+  compute_namespace: domino-compute
+  namespace: domino-inference-dev
+  node_selector: ""
+  memory: 16Gi
+  cores: 1
+  gpu: 0
+  name: triton-inference-server
+  type: domino-triton-inference
+  deployment_prefix: default  # Allows multiple deployments to share namespace (e.g., user ID)
+
+# Proxy configuration
+# These proxies implement standard Triton V2 protocol with Domino authentication
+proxy:
+  # New Triton-compatible proxies (v2)
+  # Built from Dockerfile.proxy.grpc and Dockerfile.proxy.http
+  grpc_image: "quay.io/domino/domino-triton-grpc-proxy:v5"
+  http_image: "quay.io/domino/domino-triton-http-proxy:v5"
+  replicas: 2  # Multiple replicas for HA and load distribution
+
+  # Skip authentication (for development/testing only)
+  # WARNING: Do not enable in production!
+  skip_auth: false
+
+  # Admin endpoint authorization
+  # If false: any authenticated user can call admin endpoints (load/unload models)
+  # If true: only Domino platform admins (isAdmin=true) can call admin endpoints
+  only_admin: false
+
+  # JWT Authentication (recommended - eliminates per-request auth network calls)
+  # When enabled, validates JWT bearer tokens locally using Keycloak's public keys
+  # Requires keycloak-client: "true" label on pods to access Keycloak inside Domino
+  jwt:
+    enabled: false
+    # JWKS URL for fetching public keys (fetched once, cached for 1 hour)
+    # Inside cluster: http://keycloak-http.domino-platform.svc.cluster.local:80/auth/realms/DominoRealm/protocol/openid-connect/certs
+    # Outside cluster: https://<domino-host>/auth/realms/DominoRealm/protocol/openid-connect/certs
+    jwks_url: "http://keycloak-http.domino-platform.svc.cluster.local:80/auth/realms/DominoRealm/protocol/openid-connect/certs"
+    # Expected issuer (must match 'iss' claim in JWT)
+    issuer: "https://your-domino-host.com/auth/realms/DominoRealm"
+    # Expected audience - leave empty to skip audience validation
+    # If set, must match one of the values in the token's 'aud' claim array
+    # Domino tokens typically include: flyteadmin, domino-platform, toolkit-client, etc.
+    audience: ""
+
+  # Timeouts
+  triton_timeout_secs: 30
+  model_load_timeout_secs: 300
+  model_unload_timeout_secs: 30
+  model_idle_timeout_secs: 300
+
+  # Resource allocation per container (both gRPC and HTTP proxies)
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+# Admin API configuration
+admin:
+  image: "quay.io/domino/domino-triton-admin:v5"
+  replicas: 1
+
+# Triton Inference Server configuration
+triton_inference_server:
+  # IMPORTANT: For models with Python dependencies (Whisper, LLMs), use a custom
+  # image built from Dockerfile.triton which includes required Python packages.
+  #
+  # Options:
+  #   - "nvcr.io/nvidia/tritonserver:24.10-py3"        # Stock image (ONNX models only)
+  #   - "quay.io/domino/domino-triton-backend:v5"      # TRT-LLM + ONNX (Dockerfile.triton)
+  #   - "quay.io/domino/domino-triton-backend-vllm:v1" # vLLM + ONNX (Dockerfile.triton.vllm)
+  #
+  # Use the vLLM image when deploying tinyllama-vllm or other HuggingFace models
+  # with vLLM's continuous batching. The vLLM image does NOT include TensorRT-LLM.
+  image: "quay.io/domino/domino-triton-backend:v5"
+  replicas: 1
+
+# Persistence configuration
+persistence:
+  # S3 configuration for model repository (configs + weights + cache)
+  # Directory structure: triton-repo/{models, weights, hf-cache}
+  s3:
+    bucket: <BUCKET_NAME>
+    region: "us-west-2"
+    # IAM role ARN for pod-level IRSA (recommended over node instance profile)
+    # When set, the Triton pod's ServiceAccount is annotated with this role,
+    # and the S3 CSI driver uses the pod's identity to mount the bucket.
+    # Example: arn:aws:iam::123456789:role/triton-s3-role
+    # GovCloud: arn:aws-us-gov:iam::123456789:role/triton-s3-role
+    iamRoleArn: ""
+
+# State pod configuration (Redis for shared proxy state)
+state:
+  image: "redis:7-alpine"
+  busybox_image: "busybox:1.36"
+  maxmemory: "128mb"
+  persistence:
+    size: "1Gi"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+# Istio service mesh configuration
+istio:
+  enabled: false

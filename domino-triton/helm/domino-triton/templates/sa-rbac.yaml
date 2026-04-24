@@ -1,6 +1,16 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
+  name: {{ .Values.env.name }}-sa
+  namespace: {{ .Values.env.namespace }}
+  {{- if .Values.persistence.s3.iamRoleArn }}
+  annotations:
+    eks.amazonaws.com/role-arn: {{ .Values.persistence.s3.iamRoleArn }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
   name: {{ .Values.env.name }}-admin-sa
   namespace: {{ .Values.env.namespace }}
 ---
