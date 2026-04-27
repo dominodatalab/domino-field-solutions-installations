@@ -59,6 +59,10 @@ spec:
             value: "/tmp/outlines_cache"  # outlines: diskcache FSM cache (home dir not writable)
           - name: VLLM_NO_USAGE_STATS
             value: "1"                    # vLLM: disable usage stats (home dir not writable)
+          - name: CURL_CA_BUNDLE
+            value: ""                     # Disable SSL verification for HuggingFace downloads
+          - name: REQUESTS_CA_BUNDLE
+            value: ""                     # Disable SSL verification for requests library
           # Pod name for placement tracking
           - name: POD_NAME
             valueFrom:
