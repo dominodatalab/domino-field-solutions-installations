@@ -1,5 +1,5 @@
 {
-    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model": "/triton-repo/weights/qwen25-vllm",
 
     "disable_log_requests": true,
     "gpu_memory_utilization": 0.65,
