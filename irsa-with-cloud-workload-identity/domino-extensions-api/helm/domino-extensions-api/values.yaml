@@ -1,0 +1,20 @@
+image:
+  repository: quay.io/domino
+  container: domino-extensions-api
+  appVersion: v1.2.0-release
+  pullPolicy: Always
+
+env:
+  name: domino-extensions-api
+  service: domino-extensions-api-svc
+  namespace:
+    platform: domino-platform
+    compute: domino-compute
+    field: domino-field
+    system: domino-system
+istio:
+  enabled: false
+certmanager:
+  duration: 8760h
+  renewBefore: 360h
+

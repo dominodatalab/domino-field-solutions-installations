@@ -1,0 +1,12 @@
+apiVersion: v1
+name: extendedapi
+version: 1.0.0
+description: extendedapi
+home: https://github.com/dominodatalab/extendedapi
+keywords:
+- extendedapi
+- autoshutdown
+maintainers:
+- email: sameer.wadkar@dominodatalab.com
+  name: Sameer Wadkar
+

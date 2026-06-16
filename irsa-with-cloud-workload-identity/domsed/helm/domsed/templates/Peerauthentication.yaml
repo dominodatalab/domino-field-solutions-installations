@@ -1,0 +1,12 @@
+{{- if .Values.istio.enabled -}}
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: "{{ .Values.env.name }}-webhook"
+spec:
+  selector:
+    matchLabels:
+      app: "{{ .Values.env.name }}-webhook"
+  mtls:
+    mode: DISABLE
+{{- end }}

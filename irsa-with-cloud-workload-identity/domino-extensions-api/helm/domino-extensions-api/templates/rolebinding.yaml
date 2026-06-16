@@ -1,0 +1,45 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: "{{ .Values.env.name }}"
+  namespace: "{{ .Values.env.namespace.platform }}"
+subjects:
+- kind: ServiceAccount
+  name: "{{ .Values.env.name }}"
+  namespace: "{{ .Values.env.namespace.field }}"
+roleRef:
+  kind: Role
+  name: "{{ .Values.env.name }}"
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: "{{ .Values.env.name }}"
+  namespace: "{{ .Values.env.namespace.compute }}"
+subjects:
+- kind: ServiceAccount
+  name: "{{ .Values.env.name }}"
+  namespace: "{{ .Values.env.namespace.field }}"
+roleRef:
+  kind: Role
+  name: "{{ .Values.env.name }}"
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: "{{ .Values.env.name }}"
+  namespace: "{{ .Values.env.namespace.system }}"
+subjects:
+- kind: ServiceAccount
+  name: "{{ .Values.env.name }}"
+  namespace: "{{ .Values.env.namespace.field }}"
+roleRef:
+  kind: Role
+  name: "{{ .Values.env.name }}"
+  apiGroup: rbac.authorization.k8s.io
