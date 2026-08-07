@@ -23,6 +23,20 @@
       "grpc_url": "triton-inference-server-proxy.domino-inference-prod.svc.cluster.local:50051",
       "admin_url": "http://triton-inference-server-admin.domino-inference-prod.svc.cluster.local:8000",
       "model_repo_path": "/mnt/domino-inference-prod-triton-repo-pvc/models"
+    },
+    {
+      "name": "Triton Demo",
+      "namespace": "triton-demo",
+      "proxy_url": "http://triton-inference-server-proxy.triton-demo.svc.cluster.local:8080",
+      "grpc_url": "triton-inference-server-proxy.triton-demo.svc.cluster.local:50051",
+      "admin_url": "http://triton-inference-server-admin.triton-demo.svc.cluster.local:8000"
+    },
+    {
+      "name": "Llama 4 Scout",
+      "namespace": "domino-inference-llama4scout",
+      "proxy_url": "http://triton-inference-server-proxy.domino-inference-llama4scout.svc.cluster.local:8080",
+      "grpc_url": "triton-inference-server-proxy.domino-inference-llama4scout.svc.cluster.local:50051",
+      "admin_url": "http://triton-inference-server-admin.domino-inference-llama4scout.svc.cluster.local:8000"
     }
   ],
   "default": "domino-inference-dev"

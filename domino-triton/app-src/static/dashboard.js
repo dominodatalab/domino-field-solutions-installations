@@ -1,12 +1,46 @@
 // Triton Admin Dashboard JavaScript utilities
 
 /**
- * Change the current namespace and reload the page
+ * Change the current namespace and reload the page.
+ *
+ * Model detail pages (/models/{model_name}) are namespace-specific -- the
+ * model in the URL may not exist under the newly selected namespace -- so
+ * those redirect back to the Dashboard instead of keeping the same model
+ * path with a swapped namespace.
  */
 function changeNamespace(namespace) {
     const url = new URL(window.location.href);
+    const modelDetailPrefix = window.ROOT_PATH + '/models/';
+    if (url.pathname.startsWith(modelDetailPrefix)) {
+        url.pathname = window.ROOT_PATH + '/';
+    }
     url.searchParams.set('namespace', namespace);
     window.location.href = url.toString();
+}
+
+/**
+ * Fetch simplified compute/pod status for a namespace's Triton deployment.
+ * Shared by the Dashboard's load-progress bar and the Admin page's
+ * compute-provisioning bar -- both just watch this, neither one owns it.
+ */
+async function fetchComputeStatus(namespace) {
+    const res = await fetch(buildUrl(`/api/admin/deployment/compute-status?namespace=${namespace}`));
+    if (!res.ok) {
+        const detail = await res.text().catch(() => res.statusText);
+        throw new Error(`Failed to check compute status: ${detail}`);
+    }
+    return await res.json();
+}
+
+/**
+ * Poll checkFn every intervalMs until it returns true, or throw after maxAttempts.
+ */
+async function pollUntil(checkFn, maxAttempts, intervalMs) {
+    for (let i = 0; i < maxAttempts; i++) {
+        if (await checkFn()) return;
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+    throw new Error('Timed out waiting for this stage to complete');
 }
 
 /**

@@ -1,0 +1,11 @@
+{
+  "model": "/triton-repo/weights/llama4scout-vllm-fp8-dynamic",
+  "tokenizer_mode": "auto",
+  "dtype": "auto",
+  "max_model_len": 16384,
+  "gpu_memory_utilization": 0.85,
+  "tensor_parallel_size": 8,
+  "disable_log_requests": true,
+  "enforce_eager": false,
+  "limit_mm_per_prompt": {"image": 10}
+}

@@ -7,6 +7,7 @@ env:
   compute_namespace: domino-compute
   namespace: domino-inference-dev
   node_selector: ""
+  dshm_size: "10Gi"  # /dev/shm size for multi-GPU NCCL comms; bump for tensor-parallel serving (e.g. 32Gi for 8-way)
   memory: 16Gi
   cores: 1
   gpu: 0
@@ -19,8 +20,8 @@ env:
 proxy:
   # New Triton-compatible proxies (v2)
   # Built from Dockerfile.proxy.grpc and Dockerfile.proxy.http
-  grpc_image: "quay.io/domino/domino-triton-grpc-proxy:v5"
-  http_image: "quay.io/domino/domino-triton-http-proxy:v5"
+  grpc_image: "quay.io/domino/domino-triton-grpc-proxy:v8"
+  http_image: "quay.io/domino/domino-triton-http-proxy:v8"
   replicas: 2  # Multiple replicas for HA and load distribution
 
   # Skip authentication (for development/testing only)
@@ -65,7 +66,7 @@ proxy:
 
 # Admin API configuration
 admin:
-  image: "quay.io/domino/domino-triton-admin:v5"
+  image: "quay.io/domino/domino-triton-admin:v8"
   replicas: 1
 
 # Triton Inference Server configuration

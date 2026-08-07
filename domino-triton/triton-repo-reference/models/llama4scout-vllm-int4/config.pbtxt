@@ -1,0 +1,78 @@
+# ==============================================================================
+# Llama-4-Scout-17B-16E-Instruct INT4 (W4A16) via Triton vLLM Backend
+# ==============================================================================
+# Pre-quantized INT4 checkpoint (RedHatAI/Llama-4-Scout-17B-16E-Instruct-quantized.w4a16),
+# using vLLM's native compressed-tensors format -- same family as
+# llama4scout-vllm-fp8-dynamic, so no ModelOpt-style naming issues and no
+# explicit `quantization` hint needed in model.json (auto-detected from the
+# checkpoint's own config.json).
+#
+# ~61GB on disk (vs ~109GB for the FP8/FP8-dynamic checkpoints) -- less of a
+# reduction than RedHatAI's model card advertises (the vision tower and
+# MoE-router/attention layers below are left unquantized), but still smaller.
+# See the GPU sizing note in download_llama4scout_int4.py before picking hardware.
+#
+# Prerequisites:
+#   - vLLM-enabled Triton image (Dockerfile.triton.vllm)
+#   - Model weights pre-downloaded to /triton-repo/weights/llama4scout-vllm-int4
+#     via scripts/download/download_llama4scout_int4.py
+#
+# To load:
+#   curl -X POST http://localhost:8080/v2/repository/models/llama4scout-vllm-int4/load
+#
+# To infer:
+#   python scripts/clients/llm_vllm_grpc_client.py \
+#     --model llama4scout-vllm-int4 \
+#     --prompt "What is the capital of France?" \
+#     --apply-chat-template
+# ==============================================================================
+
+name: "llama4scout-vllm-int4"
+backend: "vllm"
+
+max_batch_size: 0
+
+model_transaction_policy {
+  decoupled: true
+}
+
+input [
+  {
+    name: "text_input"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "stream"
+    data_type: TYPE_BOOL
+    dims: [ 1 ]
+    optional: true
+  },
+  {
+    name: "sampling_parameters"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+    optional: true
+  },
+  {
+    name: "exclude_input_in_output"
+    data_type: TYPE_BOOL
+    dims: [ 1 ]
+    optional: true
+  }
+]
+
+output [
+  {
+    name: "text_output"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  }
+]
+
+instance_group [
+  {
+    kind: KIND_MODEL
+    count: 1
+  }
+]

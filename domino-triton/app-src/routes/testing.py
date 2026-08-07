@@ -42,6 +42,10 @@ MODEL_INPUT_TYPES: Dict[str, Dict[str, Any]] = {
         "client_script": "yolov8n_video_grpc_client.py",
         "result_type": "video",
         "supports_model_arg": False,  # Script has hardcoded model name
+        # Per-frame CV model, no vision-context budget -- sampling rate +
+        # time range fully describe "how much of the video to analyze",
+        # there's no separate frame-count budget to speak of.
+        "video_controls": ["sample_fps", "time_range"],
     },
     "bert-base-uncased": {
         "input_types": ["text"],
@@ -85,6 +89,35 @@ MODEL_INPUT_TYPES: Dict[str, Dict[str, Any]] = {
         "result_type": "generation",
         "supports_model_arg": True,
     },
+    "llama4scout-vllm": {
+        "input_types": ["text", "video"],
+        "description": "Text generation model (Llama 4 Scout 17B, vLLM backend)",
+        "client_script": "llm_vllm_grpc_client.py",
+        "result_type": "generation",
+        "supports_model_arg": True,
+        # Vision-context-constrained: frames become <|image|> tokens in the
+        # prompt, so there's a real, small, fixed budget rather than a rate
+        # -- but time range still matters, to let a user focus the sampled
+        # frames on a specific part of a long video instead of always
+        # spreading them across the whole thing.
+        "video_controls": ["time_range", "frames_per_iteration"],
+    },
+    "llama4scout-vllm-fp8-dynamic": {
+        "input_types": ["text", "video"],
+        "description": "Text generation model (Llama 4 Scout 17B FP8-dynamic, vLLM backend)",
+        "client_script": "llm_vllm_grpc_client.py",
+        "result_type": "generation",
+        "supports_model_arg": True,
+        "video_controls": ["time_range", "frames_per_iteration"],
+    },
+    "llama4scout-vllm-int4": {
+        "input_types": ["text", "video"],
+        "description": "Text generation model (Llama 4 Scout 17B INT4/W4A16, vLLM backend)",
+        "client_script": "llm_vllm_grpc_client.py",
+        "result_type": "generation",
+        "supports_model_arg": True,
+        "video_controls": ["time_range", "frames_per_iteration"],
+    },
     "qwen25-vllm": {
         "input_types": ["text"],
         "description": "Text generation model (Qwen2.5-0.5B vLLM backend)",
@@ -113,7 +146,17 @@ class TestInferRequest(BaseModel):
     sample_file: Optional[str] = None
     max_tokens: int = 100
     temperature: float = 0.7
-    max_frames: int = 10
+    # Video sampling controls -- which of these apply to a given model is
+    # driven by that model's MODEL_INPUT_TYPES["video_controls"] entry below,
+    # since "yolov8-style" per-frame CV models and "llama-style"
+    # vision-context-constrained LLMs need genuinely different controls, not
+    # just different defaults for one shared "max_frames" field (see
+    # docs/known_issues_and_todos.md for why the old shared field was
+    # confusing and, for yolov8n specifically, actively misleading).
+    sample_fps: Optional[float] = 2.0  # subsampling rate, for per-frame CV models
+    start_time: Optional[float] = 0.0  # seconds, for any video model
+    end_time: Optional[float] = None  # seconds, None = full video length
+    frames_per_iteration: int = 8  # frame budget per prompt, for vision-context-constrained LLMs
 
 
 class TestInferResponse(BaseModel):
@@ -334,6 +377,11 @@ async def get_model_type(model_name: str, namespace: str = Query(default="local"
             "result_type": parsed["result_type"],
             "description": f"Model type from config: {triton_model_type}",
             "source": "triton_config",
+            # video_controls is only ever defined in the hardcoded dict below --
+            # merge it in here too, so a model whose input_types/result_type came
+            # from Triton config (e.g. yolov8n, via its config.pbtxt parameters)
+            # still gets its video UI controls right.
+            "video_controls": MODEL_INPUT_TYPES.get(model_name, {}).get("video_controls", []),
         }
 
     # Fall back to hardcoded dictionary
@@ -369,6 +417,63 @@ def parse_json_result(results_dir: Path, model_type: str) -> Optional[Dict]:
     except Exception as e:
         logger.error(f"Failed to parse result JSON: {e}")
         return None
+
+
+@router.post("/quick-test/{model_name}")
+async def quick_test(model_name: str, namespace: str = Query(default="local")):
+    """Fire a minimal real inference request to confirm a model is genuinely
+    ready to serve, not just reporting READY in the repository index.
+
+    Used as the final stage of the dashboard's load-progress UI. Only
+    attempts a real inference call for models registered to accept text
+    input -- sending a text-shaped request to a model that was never
+    registered for it (e.g. yolov8n, which expects video/image) would just
+    fail with an argument error from its own client script, a false
+    negative rather than a genuine problem. For those, fall back to
+    re-confirming Triton's own model-ready state instead of a full
+    inference call -- weaker, but doesn't require knowing what a valid
+    request shape looks like for every input type. See
+    docs/known_issues_and_todos.md for the follow-up to build a proper
+    per-type quick-test (video/image/audio) instead of this fallback.
+    """
+    model_config = MODEL_INPUT_TYPES.get(model_name, {})
+    input_types = model_config.get("input_types", ["text"])
+
+    if "text" not in input_types:
+        return await _weak_ready_check(model_name, namespace)
+
+    request = TestInferRequest(input_type="text", text="Hello", max_tokens=20)
+    return await run_inference(model_name, request, namespace=namespace, protocol="rest")
+
+
+async def _weak_ready_check(model_name: str, namespace: str) -> TestInferResponse:
+    """Re-confirm Triton reports this model READY, without attempting an
+    actual inference call (see quick_test's docstring for why)."""
+    proxy_url = get_proxy_url(namespace)
+    async with httpx.AsyncClient(base_url=proxy_url, timeout=10.0, headers=get_local_auth_headers()) as client:
+        try:
+            response = await client.get(f"/v2/models/{model_name}/ready")
+            ready = response.status_code == 200
+        except httpx.HTTPError as e:
+            return TestInferResponse(
+                model=model_name,
+                input_type="none",
+                protocol="rest",
+                success=False,
+                result=None,
+                result_type="none",
+                error=f"Could not reach Triton to confirm readiness: {e}",
+            )
+
+    return TestInferResponse(
+        model=model_name,
+        input_type="none",
+        protocol="rest",
+        success=ready,
+        result={"note": "weaker check: re-confirmed Triton model-ready state, no inference call attempted"},
+        result_type="none",
+        error=None if ready else f"Triton does not report {model_name} as ready",
+    )
 
 
 @router.post("/infer/{model_name}")
@@ -508,8 +613,31 @@ async def run_inference(
             sample_path = Path(settings.samples_path) / request.sample_file
             source_file = request.sample_file
             cmd.extend(["--video", str(sample_path)])
-            cmd.extend(["--max-frames", str(request.max_frames)])
-            # Add output video path for YOLOv8
+
+            video_controls = model_config.get("video_controls", [])
+
+            if "time_range" in video_controls:
+                cmd.extend(["--start-time", str(request.start_time or 0.0)])
+                if request.end_time is not None:
+                    cmd.extend(["--end-time", str(request.end_time)])
+
+            if "sample_fps" in video_controls:
+                # Per-frame CV model (e.g. yolov8n): no vision-context reason to
+                # cap total frames, sampling rate + time range already fully
+                # describe how much of the video gets analyzed. --max-frames is
+                # kept only as a generous, non-user-facing safety cap (measured
+                # throughput is ~600ms/frame, see docs/known_issues_and_todos.md,
+                # so an unbounded high rate/wide range could otherwise run past
+                # this endpoint's subprocess timeout).
+                cmd.extend(["--fps", str(request.sample_fps or 2.0)])
+                cmd.extend(["--max-frames", "200"])
+
+            if "frames_per_iteration" in video_controls:
+                # Vision-context-constrained LLM (e.g. llama4scout): frames
+                # become <|image|> tokens in the prompt, so this is a real,
+                # small frame budget rather than a rate.
+                cmd.extend(["--max-frames", str(request.frames_per_iteration)])
+
             if "yolov8" in model_name.lower():
                 result_video_path = output_dir / f"annotated_{request.sample_file}"
                 # Convert to mp4 extension

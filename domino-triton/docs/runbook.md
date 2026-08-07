@@ -137,7 +137,7 @@ docker compose down -v
 ### Build Docker Images
 
 ```bash
-export VERSION=v7
+export VERSION=v8
 
 # Triton Backend
 docker buildx build --platform=linux/amd64 -f ./Dockerfile.triton \

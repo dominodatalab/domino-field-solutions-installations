@@ -205,6 +205,56 @@ async def get_pods(namespace: str = Query(default="local")):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/deployment/compute-status")
+async def get_compute_status(namespace: str = Query(default="local")):
+    """Simplified compute/pod status for the load-progress UI.
+
+    Wraps the existing pods + deployment-status calls into one shape:
+    is there a pod at all, what phase is it in, and is its main container
+    actually ready -- the three things the load-progress stages need,
+    without the caller having to know the raw admin API response shape.
+    """
+    try:
+        async with await get_admin_client(namespace) as client:
+            pods_resp, status_resp = await asyncio.gather(
+                client.get("/v1/deployments/inference-server/pods"),
+                client.get("/v1/deployments/inference-server/status"),
+            )
+        pods_resp.raise_for_status()
+        status_resp.raise_for_status()
+        pods_data = pods_resp.json()
+        status_data = status_resp.json()
+
+        replicas = status_data.get("deployment_replicas", {})
+        desired = replicas.get("desired_replicas", 0) if isinstance(replicas, dict) else 0
+
+        pods = pods_data.get("pods", [])
+        if not pods:
+            return {
+                "desired_replicas": desired,
+                "pod_phase": None,
+                "container_ready": False,
+            }
+
+        pod = pods[0]
+        containers = pod.get("containers", [])
+        main_container = next((c for c in containers if c.get("name") == "triton"), None)
+
+        return {
+            "desired_replicas": desired,
+            "pod_phase": pod.get("phase"),
+            "container_ready": bool(main_container and main_container.get("ready")),
+        }
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=503, detail=f"Admin API unavailable: {e}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/deployment/resources")
 async def get_resources(namespace: str = Query(default="local")):
     """Get resource requests and limits for the deployment."""

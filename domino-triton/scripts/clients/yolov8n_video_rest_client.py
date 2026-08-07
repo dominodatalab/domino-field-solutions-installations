@@ -155,21 +155,33 @@ def draw_boxes(frame: np.ndarray, boxes: np.ndarray, scores: np.ndarray, class_i
     return frame
 
 
-def extract_frames(video_path: str, fps: float = None, max_frames: int = None):
-    """Extract frames from video."""
+def extract_frames(video_path: str, fps: float = None, max_frames: int = None, start_time: float = 0.0, end_time: float = None):
+    """Extract frames from video, optionally restricted to [start_time, end_time) seconds."""
     cap = cv2.VideoCapture(video_path)
     video_fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     interval = int(video_fps / fps) if fps and fps < video_fps else 1
 
-    logger.info(f"Video: {video_path}, FPS: {video_fps:.1f}, interval: {interval}")
+    start_frame = int((start_time or 0.0) * video_fps)
+    start_frame = max(0, min(start_frame, max(total_frames - 1, 0)))
+    end_frame = int(end_time * video_fps) if end_time is not None else total_frames
+    end_frame = max(start_frame + 1, min(end_frame, total_frames))
 
-    count = 0
+    logger.info(
+        f"Video: {video_path}, FPS: {video_fps:.1f}, interval: {interval}, "
+        f"frames [{start_frame}, {end_frame}) of {total_frames}"
+    )
+
+    if start_frame > 0:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+
+    count = start_frame
     extracted = 0
-    while True:
+    while count < end_frame:
         ret, frame = cap.read()
         if not ret:
             break
-        if count % interval == 0:
+        if (count - start_frame) % interval == 0:
             yield count, frame
             extracted += 1
             if max_frames and extracted >= max_frames:
@@ -281,6 +293,8 @@ def main():
                         help="REST URL (env: TRITON_REST_URL)")
     parser.add_argument("--fps", "-f", type=float, help="Target FPS")
     parser.add_argument("--max-frames", "-n", type=int, help="Max frames")
+    parser.add_argument("--start-time", type=float, default=0.0, help="Start time in seconds (default: 0)")
+    parser.add_argument("--end-time", type=float, help="End time in seconds (default: end of video)")
     parser.add_argument("--batch-size", "-b", type=int, default=1, help="Batch size (default: 1)")
     parser.add_argument("--conf-thres", "-c", type=float, default=0.25, help="Confidence threshold (default: 0.25)")
     parser.add_argument("--output", "-o", default=str(RESULTS_DIR / "yolov8n_rest.json"), help=f"Output JSON file (default: {RESULTS_DIR}/yolov8n_rest.json)")
@@ -330,7 +344,7 @@ def main():
     batch_data = []
 
     try:
-        for frame_num, frame in extract_frames(args.video, args.fps, args.max_frames):
+        for frame_num, frame in extract_frames(args.video, args.fps, args.max_frames, args.start_time, args.end_time):
             tensor, scale, pad = preprocess_frame(frame)
 
             batch_data.append({

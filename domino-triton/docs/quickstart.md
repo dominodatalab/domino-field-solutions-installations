@@ -253,7 +253,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ```
 
 
-<!-- TODO: Add environment setup instructions -->
 
 ### Deploy App
 

@@ -1,0 +1,47 @@
+# Model-specific requirements for tinyllama-python
+# These are installed to packages/ directory and loaded via sys.path
+# Build with: ./scripts/build_model_packages.sh tinyllama-python
+#
+# This model supports multiple versions, each using a different constrained decoding library:
+#   Version 1: Custom LogitsProcessor (no additional deps)
+#   Version 2: Outlines - JSON Schema, regex, grammar
+#   Version 3: Guidance - Template DSL
+#   Version 4: LMQL - Query language
+#   Version 5: Jsonformer - Structural JSON
+#   Version 6: Instructor - Pydantic validation
+#
+# NOTE: torch and transformers are already in the base Triton image (requirements-triton.txt)
+
+# =============================================================================
+# Constrained Decoding Libraries
+# =============================================================================
+
+# Outlines - Token-level constrained generation (Version 2)
+# https://github.com/outlines-dev/outlines
+outlines>=0.0.37
+
+# Guidance - Template-based constrained generation (Version 3)
+# https://github.com/guidance-ai/guidance
+guidance>=0.1.10
+
+# LMQL - Query language for LLMs (Version 4)
+# https://github.com/eth-sri/lmql
+lmql>=0.7.0
+
+# Jsonformer - Lightweight JSON generation (Version 5)
+# https://github.com/1rgs/jsonformer
+jsonformer>=0.12.0
+
+# Instructor - Pydantic-based structured output (Version 6)
+# https://github.com/jxnl/instructor
+instructor>=1.0.0
+
+# =============================================================================
+# Supporting Libraries
+# =============================================================================
+
+# Pydantic - Data validation (used by Outlines, Instructor)
+pydantic>=2.0.0
+
+# Interegular - Regex to FSM conversion (used by Outlines)
+interegular>=0.3.0

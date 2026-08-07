@@ -312,6 +312,32 @@
             <p>No models found. Check that Triton is running and has models in the repository.</p>
         </div>
     </section>
+
+    <!-- Load Progress Section -->
+    <section class="metrics-section" x-show="loadProgress">
+        <div class="load-progress-header">
+            <h2>Load progress: <span x-text="loadProgress?.modelName"></span></h2>
+            <button class="btn btn-secondary" @click="loadProgress = null" x-show="loadProgress && loadProgress.stages.every(s => s.status === 'done' || s.status === 'error')">
+                Close
+            </button>
+        </div>
+        <div class="load-stages">
+            <template x-for="(stage, idx) in (loadProgress?.stages || [])" :key="stage.key">
+                <div class="load-stage" :class="'stage-' + stage.status">
+                    <div class="load-stage-marker">
+                        <span x-show="stage.status === 'done'">&#10003;</span>
+                        <span x-show="stage.status === 'error'">&#10005;</span>
+                        <span x-show="stage.status === 'active'" class="stage-spinner"></span>
+                        <span x-show="stage.status === 'pending'" x-text="idx + 1"></span>
+                    </div>
+                    <div class="load-stage-label" x-text="stage.label"></div>
+                    <div class="load-stage-connector" x-show="idx < loadProgress.stages.length - 1"></div>
+                </div>
+            </template>
+        </div>
+        <p class="load-progress-hint" x-show="loadProgress && loadProgress.hint" x-text="loadProgress?.hint"></p>
+        <p class="load-progress-error" x-show="loadProgress && loadProgress.error" x-text="loadProgress?.error"></p>
+    </section>
 </div>
 {% endblock %}
 
@@ -321,6 +347,7 @@ function dashboardApp() {
     return {
         loading: false,
         loadingModels: {},  // Track loading state per model: { modelName: 'loading' | 'unloading' }
+        loadProgress: null,  // { modelName, stages: [{key, label, status}], error } or null when hidden
         overview: {},
         models: [],
         metrics: { gpu: [], cpu_memory: null, inference: [] },
@@ -329,8 +356,22 @@ function dashboardApp() {
 
         async init() {
             await this.refresh();
+            this.resumeInProgressLoad();
             // Auto-refresh every 30 seconds
             setInterval(() => this.refresh(), 30000);
+        },
+
+        resumeInProgressLoad() {
+            // loadProgress is purely in-memory Alpine state -- a load kicked off
+            // before a full page navigation (e.g. switching namespaces and back)
+            // has its polling loop destroyed along with the old page's JS context.
+            // Triton itself is unaffected and keeps loading in the background
+            // regardless, so reconcile against its own raw_state on mount instead
+            // of assuming "no loadProgress yet" means nothing is loading.
+            const loadingModel = this.models.find(m => m.raw_state === 'LOADING');
+            if (loadingModel && !this.loadProgress && !this.isModelLoading(loadingModel.name)) {
+                this.loadModel(loadingModel.name, { resume: true });
+            }
         },
 
         async refresh() {
@@ -368,19 +409,140 @@ function dashboardApp() {
             return loaded ? 'Unload' : 'Load';
         },
 
-        async loadModel(name) {
+        async loadModel(name, { resume = false } = {}) {
             this.loadingModels = { ...this.loadingModels, [name]: 'loading' };
+            this.loadProgress = {
+                modelName: name,
+                error: null,
+                // Resuming after a lost page navigation: compute/pod/triton must
+                // already be done, since Triton itself has to be up and running to
+                // have reported the raw_state that triggered this resume at all.
+                hint: resume ? 'Reattached to a model load already in progress (its progress was lost when you navigated away).' : null,
+                stages: [
+                    { key: 'compute', label: 'Waiting for compute', status: resume ? 'done' : 'pending' },
+                    { key: 'pod', label: 'Starting pod', status: resume ? 'done' : 'pending' },
+                    { key: 'triton', label: 'Starting Triton', status: resume ? 'done' : 'pending' },
+                    { key: 'model', label: 'Loading model', status: resume ? 'active' : 'pending' },
+                    { key: 'test', label: 'Test query', status: 'pending' },
+                ],
+            };
+
             try {
-                const res = await fetch(buildUrl(`/api/dashboard/models/${name}/load?namespace=${this.namespace}`), { method: 'POST' });
-                if (res.ok) {
-                    await this.refresh();
+                if (!resume) {
+                    // Stage 1: compute -- this only WATCHES for compute to exist, it never
+                    // triggers a scale-up itself. Spinning compute up/down is an Admin-page
+                    // action (Triton Scaling section) -- Load is scoped to loading a model
+                    // onto compute that's already there or already being started elsewhere.
+                    // If it's already ready, this resolves near-instantly (a fresh check every
+                    // time, never assumed from a previous page visit).
+                    this.setLoadStage('compute', 'active');
+                    const initialCompute = await fetchComputeStatus(this.namespace);
+                    if (initialCompute.desired_replicas === 0) {
+                        this.loadProgress.hint = 'Compute is not running for this deployment. Start it from the Admin page (Triton Scaling), then this will continue automatically.';
+                    }
+                    await pollUntil(async () => {
+                        const s = await fetchComputeStatus(this.namespace);
+                        if (s.desired_replicas > 0) {
+                            this.loadProgress.hint = null;
+                            return true;
+                        }
+                        return false;
+                    }, 600, 3000);
+                    this.setLoadStage('compute', 'done');
+
+                    // Stage 2: pod -- wait for the pod to be scheduled and Running
+                    // (up to ~30 min: GPU capacity availability is inherently variable,
+                    // took 35 min in one observed case, ~2 hours in another)
+                    this.setLoadStage('pod', 'active');
+                    await pollUntil(async () => {
+                        const s = await fetchComputeStatus(this.namespace);
+                        return s.pod_phase === 'Running';
+                    }, 600, 3000);
+                    this.setLoadStage('pod', 'done');
+
+                    // Stage 3: triton -- wait for the container to pass its readiness probe
+                    this.setLoadStage('triton', 'active');
+                    await pollUntil(async () => {
+                        const s = await fetchComputeStatus(this.namespace);
+                        return s.container_ready;
+                    }, 60, 2000);
+                    this.setLoadStage('triton', 'done');
                 }
+
+                // Stage 4: model -- fire the load call, poll until Triton reports READY
+                // (up to ~15 min: cold weight loading for large models).
+                //
+                // Triton's /load API is synchronous -- it blocks until the model
+                // actually finishes loading -- and our backend just awaits that same
+                // call end-to-end. For a large model that's many minutes, which can
+                // outlast an intermediate proxy's read-timeout; the browser then sees
+                // a network error or a proxy's own error page even though Triton is
+                // still loading successfully in the background, unaffected. So the
+                // trigger call's own success/failure is NOT treated as authoritative
+                // here -- only raw_state is. A genuine failure still surfaces via the
+                // explicit UNAVAILABLE check below, just not via this request.
+                //
+                // When resuming, skip re-triggering the load entirely -- Triton
+                // already reported this model as LOADING before this page even
+                // mounted, so there's already a real load in flight server-side.
+                this.setLoadStage('model', 'active');
+                if (!resume) {
+                    try {
+                        const loadRes = await fetch(buildUrl(`/api/dashboard/models/${name}/load?namespace=${this.namespace}`), { method: 'POST' });
+                        if (!loadRes.ok) {
+                            const detail = await loadRes.text().catch(() => loadRes.statusText);
+                            console.warn(`Load trigger request did not complete cleanly (likely a proxy timeout mid-load, not a real failure): ${detail}`);
+                        }
+                    } catch (error) {
+                        console.warn(`Load trigger request errored client-side (likely a proxy timeout mid-load): ${error.message || error}`);
+                    }
+                }
+                await pollUntil(async () => {
+                    await this.refresh();
+                    const m = this.models.find(m => m.name === name);
+                    if (m && m.raw_state === 'UNAVAILABLE') {
+                        throw new Error(`Triton reports ${name} as UNAVAILABLE -- the model failed to load`);
+                    }
+                    return m && m.raw_state === 'READY';
+                }, 300, 3000);
+                this.setLoadStage('model', 'done');
+
+                // Stage 5: test -- a real, minimal inference call for text-capable models;
+                // the backend falls back to a weaker ready-state check for models that
+                // were never registered to accept a text-shaped request (see quick_test
+                // in testing.py -- currently just yolov8n, see known_issues_and_todos.md).
+                this.setLoadStage('test', 'active');
+                const testRes = await fetch(buildUrl(`/api/testing/quick-test/${name}?namespace=${this.namespace}`), { method: 'POST' });
+                if (!testRes.ok) {
+                    const detail = await testRes.text().catch(() => testRes.statusText);
+                    throw new Error(`Test query failed: ${detail}`);
+                }
+                this.setLoadStage('test', 'done');
+
             } catch (error) {
-                console.error('Failed to load model:', error);
+                console.error('Load progress failed:', error);
+                this.failActiveLoadStage(error.message || String(error));
+                showToast(`Failed to load ${name}: ${error.message || error}`, 'error');
             } finally {
                 const { [name]: _, ...rest } = this.loadingModels;
                 this.loadingModels = rest;
+                await this.refresh();
             }
+        },
+
+        setLoadStage(key, status) {
+            if (!this.loadProgress) return;
+            this.loadProgress.stages = this.loadProgress.stages.map(s =>
+                s.key === key ? { ...s, status } : s
+            );
+        },
+
+        failActiveLoadStage(message) {
+            if (!this.loadProgress) return;
+            this.loadProgress.error = message;
+            this.loadProgress.stages = this.loadProgress.stages.map(s =>
+                s.status === 'active' ? { ...s, status: 'error' } : s
+            );
         },
 
         async unloadModel(name) {

@@ -1,8 +1,16 @@
 # ==============================================================================
-# Qwen2.5-7B-Instruct via Triton vLLM Backend
+# Qwen2.5-0.5B-Instruct via Triton vLLM Backend
 # ==============================================================================
 # Same Triton config shape as tinyllama-vllm — the model-specific settings
 # (tokenizer mode, context length, guided decoding backend) live in model.json.
+#
+# Corrected 2026-07-22: this file's model.json previously contained a
+# byte-for-byte copy of this config.pbtxt (invalid JSON -- would have failed
+# immediately on load), and this header said "7B" while
+# scripts/clients/llm_vllm_grpc_client.py's _TRITON_TO_HF mapping (the
+# actual source of truth for which HF model this Triton model name resolves
+# to) has always pointed at Qwen/Qwen2.5-0.5B-Instruct. Both fixed to match
+# that mapping.
 #
 # To load:
 #   curl -X POST http://localhost:8080/v2/repository/models/qwen25-vllm/load

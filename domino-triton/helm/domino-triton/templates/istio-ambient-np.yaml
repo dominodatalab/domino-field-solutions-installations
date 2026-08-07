@@ -1,0 +1,22 @@
+{{- if and .Values.istio.enabled .Values.istio.ambient.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{.Values.env.name}}-allow-ztunnel-hbone-intra-namespace
+  namespace: {{.Values.env.namespace}}
+spec:
+  podSelector: {}  # applies to all pods in the namespace
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{.Values.env.namespace}}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{.Values.env.compute_namespace}}
+      ports:
+        - port: 15008
+          protocol: TCP
+{{- end }}

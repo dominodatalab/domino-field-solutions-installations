@@ -56,6 +56,10 @@ class DashboardModel(BaseModel):
     # Backend info (populated from Triton config for loaded models)
     backend: Optional[str] = None
     platform: Optional[str] = None
+    # Raw Triton repository state (READY/LOADING/UNAVAILABLE), distinct from
+    # `loaded` -- lets callers (e.g. the load-progress UI) distinguish "a load
+    # is in progress" from "never loaded".
+    raw_state: Optional[str] = None
 
 
 class DashboardOverview(BaseModel):
@@ -303,7 +307,11 @@ async def get_overview(namespace: str = Query(default="local")):
 @router.get("/api/dashboard/models")
 async def get_models(namespace: str = Query(default="local")):
     """Get all models with their status."""
-    models = await fetch_dashboard_models(namespace)
+    models, raw_models = await asyncio.gather(
+        fetch_dashboard_models(namespace),
+        fetch_models_from_proxy(namespace),
+    )
+    state_by_name = {m.get("name"): m.get("state") for m in raw_models if m.get("name")}
 
     # Fetch Triton config for all loaded models in parallel to get backend/platform
     loaded_names = [m["name"] for m in models if m.get("loaded")]
@@ -336,6 +344,7 @@ async def get_models(namespace: str = Query(default="local")):
             time_until_eviction_secs=model.get("time_until_eviction_secs"),
             backend=cfg.get("backend") or cfg.get("platform") or None,
             platform=cfg.get("platform") or None,
+            raw_state=state_by_name.get(name),
         )
         result.append(dashboard_model)
 

@@ -637,6 +637,12 @@ body {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
+    align-items: center;
+}
+
+.load-elapsed-time {
+    color: var(--text-muted);
+    font-size: 0.9rem;
 }
 
 .access-info p {
@@ -676,11 +682,17 @@ body {
     resize: vertical;
 }
 
-.llm-params,
-.video-params {
+.llm-params {
     display: flex;
     gap: 1rem;
     flex-wrap: wrap;
+    margin-top: 0.5rem;
+}
+
+.video-params {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
     margin-top: 0.5rem;
 }
 
@@ -1130,4 +1142,121 @@ body {
     .metrics-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* Load Progress Section */
+.load-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+}
+
+.load-progress-header h2 {
+    margin-bottom: 0;
+}
+
+.load-stages {
+    display: flex;
+    align-items: flex-start;
+}
+
+.load-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+    text-align: center;
+}
+
+.load-stage-marker {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--bg-color);
+    border: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    z-index: 1;
+}
+
+.load-stage-label {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.load-stage-connector {
+    position: absolute;
+    top: 15px;
+    left: calc(50% + 20px);
+    right: calc(-50% + 20px);
+    height: 2px;
+    background-color: var(--border-color);
+    z-index: 0;
+}
+
+.load-stage.stage-active .load-stage-marker {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.load-stage.stage-active .load-stage-label {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.load-stage.stage-done .load-stage-marker {
+    border-color: var(--success-color);
+    background-color: var(--success-color);
+    color: white;
+}
+
+.load-stage.stage-done .load-stage-label {
+    color: var(--text-color);
+}
+
+.load-stage.stage-done .load-stage-connector {
+    background-color: var(--success-color);
+}
+
+.load-stage.stage-error .load-stage-marker {
+    border-color: var(--danger-color);
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.load-stage.stage-error .load-stage-label {
+    color: var(--danger-color);
+    font-weight: 600;
+}
+
+.stage-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: stage-spin 0.8s linear infinite;
+}
+
+@keyframes stage-spin {
+    to { transform: rotate(360deg); }
+}
+
+.load-progress-hint {
+    margin-top: 1rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.load-progress-error {
+    margin-top: 1rem;
+    color: var(--danger-color);
+    font-size: 0.875rem;
 }

@@ -1,0 +1,50 @@
+# PersistentVolume/PersistentVolumeClaim for staging the Llama4 Scout INT4
+# (W4A16) checkpoint into S3, matching the ad hoc PV/PVC pattern used for the
+# fp8/fp8-dynamic checkpoints (see docs/s3_fuse_latency_test_plan.md's table
+# and docs/fp8_serving_configuration.md's "Redeploying this configuration"
+# section) -- these aren't part of the Helm chart (see
+# helm/domino-triton/templates/pvpvc-model.yaml for that templated,
+# per-namespace equivalent); they're one-off resources in domino-compute.
+#
+# S3 layout: s3://marcdo126967-triton-models/default/llama4scout-int4/weights/
+# mounts flat (no extra "llama4scout-vllm-int4/" nesting inside the prefix)
+# directly at /triton-repo/weights/llama4scout-vllm-int4 in any pod that uses
+# this PVC -- matching how llama4scout-vllm-fp8-dynamic/1/model.json's
+# "model" path points straight at its mount.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: llama4scout-int4-s3-pv
+spec:
+  capacity:
+    storage: 100Gi                 # ignored by S3, required by K8s
+  accessModes: [ ReadWriteMany ]   # S3 supports multi-pod access
+  storageClassName: ""             # static provisioning
+  claimRef:
+    namespace: domino-compute
+    name: llama4scout-int4-s3-pvc
+  csi:
+    driver: s3.csi.aws.com
+    volumeHandle: s3-csi-domino-compute-llama4scout-int4
+    volumeAttributes:
+      bucketName: marcdo126967-triton-models
+  mountOptions:
+    - "--region=us-west-2"
+    - "--prefix=default/llama4scout-int4/weights/"
+    - "--uid=1000"
+    - "--gid=1000"
+    - "--allow-delete"
+    - "--allow-overwrite"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: llama4scout-int4-s3-pvc
+  namespace: domino-compute
+spec:
+  accessModes: [ ReadWriteMany ]
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 100Gi
+  volumeName: llama4scout-int4-s3-pv

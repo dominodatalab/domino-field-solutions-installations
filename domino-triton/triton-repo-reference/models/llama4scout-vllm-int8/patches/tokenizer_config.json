@@ -1,0 +1,16 @@
+{
+  "backend": "tokenizers",
+  "bos_token": "<|begin_of_text|>",
+  "clean_up_tokenization_spaces": false,
+  "eos_token": "<|eot|>",
+  "is_local": true,
+  "local_files_only": false,
+  "model_input_names": [
+    "input_ids",
+    "attention_mask"
+  ],
+  "model_max_length": 10485760,
+  "pad_token": "<|finetune_right_pad|>",
+  "processor_class": "Llama4Processor",
+  "tokenizer_class": "PreTrainedTokenizer"
+}

@@ -1,35 +1,77 @@
+# TinyLlama with Constrained Decoding
+#
+# This model supports multiple versions, each using a different constrained decoding library:
+#   Version 1: Custom LogitsProcessor - Manual JSON constraint (no extra deps)
+#   Version 2: Outlines - JSON Schema, regex, grammar via token masking
+#   Version 3: Guidance - Template DSL with gen/select blocks
+#   Version 4: LMQL - SQL-like query language for constraints
+#   Version 5: Jsonformer - Structural JSON generation
+#   Version 6: Instructor - Pydantic validation with retry
+#
+# Usage:
+#   curl -X POST "http://localhost:8080/v2/models/tinyllama-python/versions/2/infer" ...
+#   client.infer("tinyllama-python", inputs, model_version="2")
+
 name: "tinyllama-python"
 backend: "python"
-max_batch_size: 0
+max_batch_size: 8
+
+# Only load version 1 by default (standard text generation)
+# Other versions can be loaded via API with config override
+version_policy { specific { versions: [1] } }
+
+# Dynamic batching: accumulate requests up to max_batch_size or max_queue_delay
+# This allows concurrent requests to be batched together for efficiency
+dynamic_batching {
+  max_queue_delay_microseconds: 100000  # 100ms - wait for batch to fill
+}
 
 input [
   {
     name: "prompt"
     data_type: TYPE_STRING
-    dims: [ -1 ]
+    dims: [ 1 ]  # Single element per batch item
   },
   {
     name: "max_tokens"
     data_type: TYPE_INT32
-    dims: [ -1 ]
+    dims: [ 1 ]
     optional: true
   },
   {
     name: "temperature"
     data_type: TYPE_FP32
-    dims: [ -1 ]
+    dims: [ 1 ]
     optional: true
   },
   {
     name: "top_p"
     data_type: TYPE_FP32
-    dims: [ -1 ]
+    dims: [ 1 ]
     optional: true
   },
   {
     name: "system_prompt"
     data_type: TYPE_STRING
-    dims: [ -1 ]
+    dims: [ 1 ]
+    optional: true
+  },
+  {
+    name: "response_format"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+    optional: true
+  },
+  {
+    # Schema/template name for constrained decoding (versions 2-6)
+    # Version 2 (Outlines): qa, entity, sentiment, regex_phone
+    # Version 3 (Guidance): qa, chain_of_thought, classification
+    # Version 4 (LMQL): basic, constrained, scripted
+    # Version 5 (Jsonformer): qa, person, product, list_items
+    # Version 6 (Instructor): qa, extraction, analysis
+    name: "schema_name"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
     optional: true
   }
 ]
@@ -38,21 +80,35 @@ output [
   {
     name: "generated_text"
     data_type: TYPE_STRING
-    dims: [ -1 ]
+    dims: [ 1 ]
   },
   {
     name: "token_count"
     data_type: TYPE_INT32
-    dims: [ -1 ]
+    dims: [ 1 ]
   }
 ]
 
 instance_group [
   {
-    kind: KIND_GPU
+    kind: KIND_CPU
     count: 1
   }
 ]
+
+# For GPU deployment, replace instance_group with:
+# instance_group [
+#   {
+#     kind: KIND_GPU
+#     count: 1
+#   }
+# ]
+
+# Model type for dashboard UI (comma-separated: text, image, video, audio, text-llm)
+parameters {
+  key: "model_type"
+  value: { string_value: "text-llm" }
+}
 
 parameters {
   key: "model_id"
@@ -68,3 +124,4 @@ parameters {
   key: "default_max_tokens"
   value: { string_value: "256" }
 }
+

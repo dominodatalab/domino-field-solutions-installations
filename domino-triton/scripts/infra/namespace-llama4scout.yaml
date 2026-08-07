@@ -1,0 +1,33 @@
+# Namespace for the dedicated Llama 4 Scout deployment (domino-inference-llama4scout).
+#
+# NOT managed by the Helm chart (helm/domino-triton) -- deliberately kept as a
+# standalone manifest, same pattern as scripts/infra/karpenter/llama4scout-fp8-nodepool.yaml.
+# Folding this into the chart's own templates would mean every OTHER release using
+# this chart (triton-demo, domino-inference-dev/test) would suddenly have Helm try
+# to adopt/manage their already-existing namespaces too, since they share the same
+# chart -- those namespaces were never created by Helm and doing so retroactively
+# risks ownership conflicts (and would make `helm uninstall` a namespace-deletion
+# risk it isn't today).
+#
+# `helm install --create-namespace` does NOT set any of these labels -- it only
+# does a bare `kubectl create namespace` equivalent. Missing the
+# istio.io/dataplane-mode: ambient label specifically was the root cause of an
+# earlier (now-resolved, but easy to reintroduce) proxy-to-auth-backend
+# networking failure -- see docs/fp8_dedicated_namespace_plan.md.
+#
+# Labels below match triton-demo's (the confirmed-working reference deployment)
+# exactly, plus the namespace's own name -- apply this BEFORE `helm install`.
+#
+# To apply:
+#   kubectl apply -f scripts/infra/namespace-llama4scout.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: domino-inference-llama4scout
+  labels:
+    domino-compute: "true"
+    domino-triton: "true"
+    istio-injection: "disabled"
+    istio.io/dataplane-mode: "ambient"
+    istio.io/rev: "default"
+    marcdo126967-owned: "true"

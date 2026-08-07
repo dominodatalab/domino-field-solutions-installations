@@ -1,0 +1,71 @@
+# ==============================================================================
+# Llama-4-Scout-17B-16E-Instruct via Triton vLLM Backend
+# ==============================================================================
+# Llama 4 Scout is a Mixture-of-Experts model (17B active params, 16 experts).
+# Requires a HuggingFace token to download (gated by Meta).
+#
+# Prerequisites:
+#   - vLLM-enabled Triton image (Dockerfile.triton.vllm)
+#   - Multi-GPU node recommended (2x A100/H100 80GB or 4x A10G 24GB)
+#   - Model weights pre-downloaded to /triton-repo/weights/llama4scout-vllm
+#     via scripts/download/download_llama4scout.py
+#
+# To load:
+#   curl -X POST http://localhost:8080/v2/repository/models/llama4scout-vllm/load
+#
+# To infer:
+#   python scripts/clients/llm_vllm_grpc_client.py \
+#     --model llama4scout-vllm \
+#     --prompt "What is the capital of France?" \
+#     --apply-chat-template
+# ==============================================================================
+
+name: "llama4scout-vllm"
+backend: "vllm"
+
+max_batch_size: 0
+
+model_transaction_policy {
+  decoupled: true
+}
+
+input [
+  {
+    name: "text_input"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "stream"
+    data_type: TYPE_BOOL
+    dims: [ 1 ]
+    optional: true
+  },
+  {
+    name: "sampling_parameters"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+    optional: true
+  },
+  {
+    name: "exclude_input_in_output"
+    data_type: TYPE_BOOL
+    dims: [ 1 ]
+    optional: true
+  }
+]
+
+output [
+  {
+    name: "text_output"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  }
+]
+
+instance_group [
+  {
+    kind: KIND_MODEL
+    count: 1
+  }
+]

@@ -59,6 +59,13 @@ spec:
             value: "/tmp/outlines_cache"  # outlines: diskcache FSM cache (home dir not writable)
           - name: VLLM_NO_USAGE_STATS
             value: "1"                    # vLLM: disable usage stats (home dir not writable)
+          - name: VLLM_WORKER_MULTIPROC_METHOD
+            value: "spawn"                 # vLLM defaults to "fork" for its tensor-parallel worker
+                                            # processes, which crashes as soon as the parent process
+                                            # has touched CUDA ("Cannot re-initialize CUDA in forked
+                                            # subprocess") -- only surfaces with tensor_parallel_size > 1
+                                            # (i.e. multi-GPU models like the Llama4 Scout variants).
+                                            # "spawn" avoids inheriting the parent's CUDA context.
           - name: CURL_CA_BUNDLE
             value: ""                     # Disable SSL verification for HuggingFace downloads
           - name: REQUESTS_CA_BUNDLE
@@ -69,19 +76,39 @@ spec:
               fieldRef:
                 fieldPath: metadata.name
 
-        args:
-          - "tritonserver"
-          - "--model-repository=/triton-repo/models"  # Triton model configs
-          - "--exit-on-error=false"      # Don't exit if models fail
-          - "--strict-readiness=false"   # Report ready even with failed models
-          - "--model-control-mode=explicit"
-          - "--allow-grpc=true"          # Enable gRPC endpoint
-          - "--grpc-port=8001"
-          - "--allow-http=true"          # Enable HTTP endpoint (required for REST proxy)
-          - "--http-port=8000"
-          - "--allow-metrics=true"       # Enable metrics endpoint
-          - "--metrics-port=8002"
-          - "--log-verbose=1"
+        # vllm_version_override (set in values-llama4scout-fp8.yaml only): this
+        # image's bundled vLLM (0.8.1+nv25.04, from the
+        # nvcr.io/nvidia/tritonserver:25.04-vllm-python-py3 base) has no
+        # native implementation for Llama4ForConditionalGeneration -- it
+        # silently falls back to HuggingFace Transformers' generic loader,
+        # which does not shard the MoE experts across GPUs correctly and
+        # OOMs on any real multi-GPU Llama4 Scout variant (FP8/INT4/etc).
+        # This override is deliberately gated per-deployment (not applied to
+        # the shared default) -- other deployments (triton-demo,
+        # domino-inference-dev/test) use small single-GPU models that don't
+        # need it, and paying the multi-minute pip-install cost on every pod
+        # restart for them would be pure regression. See
+        # docs/fp8_serving_configuration.md for the full version-pin reasoning.
+        command:
+          - bash
+          - -c
+          - |
+            set -e
+            {{- if .Values.triton_inference_server.vllm_version_override }}
+            echo "Upgrading vllm to {{ .Values.triton_inference_server.vllm_version_override.vllm }} + pinning transformers=={{ .Values.triton_inference_server.vllm_version_override.transformers }}..."
+            python3 -m pip install --no-cache-dir "vllm=={{ .Values.triton_inference_server.vllm_version_override.vllm }}" "transformers=={{ .Values.triton_inference_server.vllm_version_override.transformers }}"
+            echo "Force-reinstalling genuine public xformers=={{ .Values.triton_inference_server.vllm_version_override.xformers }}..."
+            python3 -m pip install --no-cache-dir --force-reinstall --no-deps "xformers=={{ .Values.triton_inference_server.vllm_version_override.xformers }}"
+            {{- end }}
+            exec /opt/tritonserver/bin/tritonserver \
+              --model-repository=/triton-repo/models \
+              --exit-on-error=false \
+              --strict-readiness=false \
+              --model-control-mode=explicit \
+              --allow-grpc=true --grpc-port=8001 \
+              --allow-http=true --http-port=8000 \
+              --allow-metrics=true --metrics-port=8002 \
+              --log-verbose=1
 
         resources:
           requests:
@@ -106,6 +133,14 @@ spec:
           - mountPath: /dev/shm
             name: dshm
 
+        startupProbe:
+          httpGet:
+            path: /v2/health/live
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 90  # up to ~15 min, to tolerate a cold vllm_version_override pip install
+
         livenessProbe:
           httpGet:
             path: /v2/health/live
@@ -126,7 +161,7 @@ spec:
         - name: dshm
           emptyDir:
             medium: Memory
-            sizeLimit: 10Gi
+            sizeLimit: {{ .Values.env.dshm_size | default "10Gi" }}
         - name: triton-repo-vol
           persistentVolumeClaim:
             claimName: triton-repo-pvc

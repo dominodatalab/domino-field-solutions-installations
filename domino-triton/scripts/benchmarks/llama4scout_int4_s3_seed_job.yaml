@@ -1,0 +1,62 @@
+# One-shot Job that downloads the Llama4 Scout INT4 (W4A16) checkpoint
+# directly into its S3-backed PVC (llama4scout_int4_s3_pvc.yaml), the same
+# way the fp8/fp8-dynamic checkpoints were seeded into S3 -- runs
+# scripts/download/download_llama4scout_int4.py with --base-dir pointed at
+# the mount, so snapshot_download() writes straight through to S3 instead of
+# downloading locally and copying afterward.
+#
+# Unlike the serving pods in triton_latency_s3fuse_pod.yaml, this needs no
+# GPU -- it is a plain network/disk-bound download -- so no tolerations or
+# GPU resources are requested.
+#
+# Prerequisites (see the "To seed S3" commands where this file is referenced):
+#   1. kubectl apply -f scripts/benchmarks/llama4scout_int4_s3_pvc.yaml
+#   2. The existing "hf-token" Secret in domino-compute (key: "token") --
+#      already created for the fp8/fp8-dynamic/int8 downloads and reused here
+#      instead of creating a redundant per-model secret. No new secret needed.
+#   3. A ConfigMap with this script's contents (see command below)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: llama4scout-int4-s3-seed
+  namespace: domino-compute
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: download
+          image: nvcr.io/nvidia/tritonserver:25.04-vllm-python-py3
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              pip install -q huggingface_hub transformers
+              python3 /scripts/download_llama4scout_int4.py --base-dir /triton-repo --tensor-parallel-size 4
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+          volumeMounts:
+            - name: download-script
+              mountPath: /scripts
+            - name: weights
+              mountPath: /triton-repo/weights/llama4scout-vllm-int4
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+      volumes:
+        - name: download-script
+          configMap:
+            name: llama4scout-int4-download-script
+        - name: weights
+          persistentVolumeClaim:
+            claimName: llama4scout-int4-s3-pvc

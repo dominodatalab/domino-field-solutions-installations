@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: triton-latency-s3fuse-dynamic
+  namespace: domino-compute
+spec:
+  restartPolicy: Never
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+  containers:
+    - name: triton
+      image: nvcr.io/nvidia/tritonserver:25.04-vllm-python-py3
+      command:
+        - bash
+        - -c
+        - |
+          set -e
+          # nv25.04's bundled vLLM (0.8.1) has no native Llama4 model
+          # registration at all -- needs an upgrade regardless of checkpoint.
+          # vllm==0.12.0 was tried first (vLLM's own documented version for
+          # Llama4 Scout) but Triton 25.04's bundled backend glue code
+          # (tritonfrontend's hard pydantic==2.10.6 pin, and
+          # backends/vllm/utils/metrics.py importing vllm.engine.metrics,
+          # a module removed by 0.12.0) is incompatible with it -- confirmed
+          # checkpoint-agnostic, a pure import-time failure. vllm==0.9.2 is
+          # confirmed compatible with this Triton container and already has
+          # full compressed-tensors MoE support (compressed_tensors.py has a
+          # FusedMoE branch in get_quant_method, confirmed via source at the
+          # v0.9.2 tag) -- unlike the modelopt path, which only gained MoE
+          # support at 0.10.0. This checkpoint (RedHatAI, compressed-tensors)
+          # doesn't need the newer modelopt fix, so 0.9.2 is the safer,
+          # sufficient choice.
+          #
+          # Also need two more fixes, both architecture/base-image level, not
+          # checkpoint-specific: transformers==4.51.3 (0.9.2 only floors
+          # transformers>=4.51.1 with no ceiling; unpinned resolves to
+          # transformers>=4.54.0, which collides with vLLM's bundled Ovis
+          # config shim over the "aimv2" config name), and a force-reinstalled
+          # genuine public xformers==0.0.30 (the base image's local build,
+          # 0.0.30+nv25.04, satisfies the exact-match pin as a no-op but has
+          # an unfixed Triton JIT API call in its bundled split-K kernel that
+          # the vision tower's MultiHeadAttention hits regardless of checkpoint).
+          # Full reasoning: docs/fp8_serving_configuration.md
+          echo "Upgrading vllm to 0.9.2 + pinning transformers==4.51.3..."
+          python3 -m pip install --no-cache-dir "vllm==0.9.2" "transformers==4.51.3"
+          echo "Force-reinstalling genuine public xformers==0.0.30..."
+          python3 -m pip install --no-cache-dir --force-reinstall --no-deps "xformers==0.0.30"
+          python3 -c "import vllm; print('vllm', vllm.__version__)"
+          tritonserver --model-repository=/triton-repo/models --model-control-mode=explicit \
+            --http-port=8000 --grpc-port=8001 --metrics-port=8002 &
+          TRITON_PID=$!
+          echo "Triton started, PID $TRITON_PID. Waiting for it to be responsive..."
+          until curl -sf localhost:8000/v2/health/ready >/dev/null 2>&1; do sleep 2; done
+          echo "TRITON_SERVER_READY"
+          sleep 3600
+      resources:
+        limits:
+          nvidia.com/gpu: "8"
+          memory: "700Gi"
+          cpu: "80"
+        requests:
+          nvidia.com/gpu: "8"
+          memory: "700Gi"
+          cpu: "80"
+      volumeMounts:
+        - name: bench-script
+          mountPath: /scripts
+        - name: config
+          mountPath: /triton-repo/models/llama4scout-vllm-fp8-dynamic/config.pbtxt
+          subPath: config.pbtxt
+        - name: config
+          mountPath: /triton-repo/models/llama4scout-vllm-fp8-dynamic/1/model.json
+          subPath: model.json
+        - name: weights
+          mountPath: /triton-repo/weights/llama4scout-vllm-fp8-dynamic
+          readOnly: true
+        # NCCL (multi-GPU tensor-parallel comms) needs much more shared memory
+        # than a pod's tiny default /dev/shm (64Mi) -- without this, vLLM's
+        # 8-way tensor parallel worker init fails with a generic
+        # "NCCL error: unhandled system error".
+        - name: dshm
+          mountPath: /dev/shm
+  volumes:
+    - name: bench-script
+      configMap:
+        name: latency-bench-script
+    - name: config
+      configMap:
+        name: triton-s3fuse-fp8-dynamic-config
+    - name: weights
+      persistentVolumeClaim:
+        claimName: llama4scout-fp8-dynamic-s3-pvc
+        readOnly: true
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 32Gi

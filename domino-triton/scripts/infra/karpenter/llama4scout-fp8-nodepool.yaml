@@ -1,0 +1,73 @@
+# Dedicated Karpenter NodePool for large-model GPU serving -- currently
+# Llama 4 Scout FP8 (llama4scout-vllm-fp8-dynamic), intended to cover other
+# large/multi-GPU models sharing this namespace later.
+#
+# Applied directly via `kubectl apply`, not folded into the Helm release --
+# per Marc Doan (2026-07-22): per-deployment compute customization is done
+# via EC2NodeClass additions, and separate/distinctly-named NodePool objects
+# aren't touched by Fleetcommand's deployer reconciliation on infra upgrades
+# (that only applies to modifying the existing shared NodePools). See
+# docs/known_issues_and_todos.md for the full corrected note -- an earlier
+# version of this comment incorrectly warned this would get reverted.
+#
+# References a dedicated EC2NodeClass (domino-eks-large-gpu, see
+# scripts/infra/karpenter/ec2nodeclass-large-gpu.yaml) rather than the shared
+# `domino-eks-gpu` one used by the small-model `gpu` NodePool -- same
+# reasoning as the NodePool split: keep large-model compute fully separate
+# from what small-model serving depends on, all the way down.
+#
+# Deliberately a SEPARATE NodePool from the existing `gpu` pool (rather than
+# raising that pool's limits) to avoid affecting small-model serving, which
+# already depends on the `gpu` pool's current sizing.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: llama4scout-fp8
+spec:
+  disruption:
+    budgets:
+    - nodes: 10%
+    consolidateAfter: 5m
+    consolidationPolicy: WhenEmpty
+  limits:
+    cpu: 200
+    memory: 1600Gi
+    nvidia.com/gpu: 16
+  template:
+    metadata:
+      labels:
+        dominodatalab.com/domino-node: "true"
+        dominodatalab.com/node-pool: llama4scout-fp8
+        nvidia.com/gpu: "true"
+    spec:
+      expireAfter: Never
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: domino-eks-large-gpu
+      requirements:
+      - key: kubernetes.io/arch
+        operator: In
+        values:
+        - amd64
+      - key: kubernetes.io/os
+        operator: In
+        values:
+        - linux
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values:
+        - on-demand
+        - reserved
+      - key: node.kubernetes.io/instance-type
+        operator: In
+        values:
+        - g6e.48xlarge
+        - p5.48xlarge
+      startupTaints:
+      - effect: NoExecute
+        key: ebs.csi.aws.com/agent-not-ready
+      taints:
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        value: "true"

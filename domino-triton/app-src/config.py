@@ -46,7 +46,7 @@ def load_settings() -> Settings:
         scripts_path=os.getenv("SCRIPTS_PATH", str(app_dir / "scripts")),
         results_path=os.getenv("RESULTS_PATH", str(app_dir / "results")),
         namespaces_file=os.getenv("NAMESPACES_FILE", str(app_dir / "namespaces.json")),
-        proxy_timeout_secs=float(os.getenv("PROXY_TIMEOUT_SECS", "120.0")),
+        proxy_timeout_secs=float(os.getenv("PROXY_TIMEOUT_SECS", "1600.0")),
         # Local auth mode enabled by default for local dev, disable in Helm
         local_auth_mode=os.getenv("LOCAL_AUTH_MODE", "true").strip().lower() == "true",
     )

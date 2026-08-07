@@ -150,60 +150,64 @@ from fastapi import Query, Request
 from fastapi.responses import HTMLResponse
 
 @app.get("/results-page", response_class=HTMLResponse)
-async def results_page(request: Request):
+async def results_page(request: Request, namespace: str = Query(default=None)):
     """Render the benchmark results page."""
     namespaces_config = load_namespaces()
+    current_ns = namespace or namespaces_config.get("default", "local")
     return templates.TemplateResponse(
         request,
         "results.html",
         {
-            "current_namespace": namespaces_config.get("default", "local"),
+            "current_namespace": current_ns,
             "namespaces": namespaces_config.get("deployments", []),
         },
     )
 
 
 @app.get("/view-result/{path:path}", response_class=HTMLResponse)
-async def view_result_page(request: Request, path: str):
+async def view_result_page(request: Request, path: str, namespace: str = Query(default=None)):
     """Render the markdown viewer page for a result file."""
     from pathlib import Path
     filename = Path(path).name
     namespaces_config = load_namespaces()
+    current_ns = namespace or namespaces_config.get("default", "local")
     return templates.TemplateResponse(
         request,
         "markdown_viewer.html",
         {
             "filename": filename,
             "path": path,
-            "current_namespace": namespaces_config.get("default", "local"),
+            "current_namespace": current_ns,
             "namespaces": namespaces_config.get("deployments", []),
         },
     )
 
 
 @app.get("/architecture", response_class=HTMLResponse)
-async def architecture_page(request: Request):
+async def architecture_page(request: Request, namespace: str = Query(default=None)):
     """Render the system architecture documentation page."""
     namespaces_config = load_namespaces()
+    current_ns = namespace or namespaces_config.get("default", "local")
     return templates.TemplateResponse(
         request,
         "architecture.html",
         {
-            "current_namespace": namespaces_config.get("default", "local"),
+            "current_namespace": current_ns,
             "namespaces": namespaces_config.get("deployments", []),
         },
     )
 
 
 @app.get("/presentation", response_class=HTMLResponse)
-async def presentation_page(request: Request):
+async def presentation_page(request: Request, namespace: str = Query(default=None)):
     """Render the technical presentation page."""
     namespaces_config = load_namespaces()
+    current_ns = namespace or namespaces_config.get("default", "local")
     return templates.TemplateResponse(
         request,
         "presentation.html",
         {
-            "current_namespace": namespaces_config.get("default", "local"),
+            "current_namespace": current_ns,
             "namespaces": namespaces_config.get("deployments", []),
         },
     )

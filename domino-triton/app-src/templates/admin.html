@@ -115,6 +115,31 @@
         </div>
     </section>
 
+    <!-- Compute Provisioning Section -->
+    <section class="metrics-section" x-show="computeProgress">
+        <div class="load-progress-header">
+            <h2>Compute provisioning</h2>
+            <button class="btn btn-secondary" @click="computeProgress = null" x-show="computeProgress && computeProgress.stages.every(s => s.status === 'done' || s.status === 'error')">
+                Close
+            </button>
+        </div>
+        <div class="load-stages">
+            <template x-for="(stage, idx) in (computeProgress?.stages || [])" :key="stage.key">
+                <div class="load-stage" :class="'stage-' + stage.status">
+                    <div class="load-stage-marker">
+                        <span x-show="stage.status === 'done'">&#10003;</span>
+                        <span x-show="stage.status === 'error'">&#10005;</span>
+                        <span x-show="stage.status === 'active'" class="stage-spinner"></span>
+                        <span x-show="stage.status === 'pending'" x-text="idx + 1"></span>
+                    </div>
+                    <div class="load-stage-label" x-text="stage.label"></div>
+                    <div class="load-stage-connector" x-show="idx < computeProgress.stages.length - 1"></div>
+                </div>
+            </template>
+        </div>
+        <p class="load-progress-error" x-show="computeProgress && computeProgress.error" x-text="computeProgress?.error"></p>
+    </section>
+
     <!-- Triton Scaling Section -->
     <section class="admin-section">
         <h3>Triton Scaling</h3>
@@ -1252,6 +1277,8 @@ function adminApp() {
             containerName: null,
             statusMessage: '',
         },
+        computeProgress: null,  // { stages: [...], error: null } or null when hidden
+
         // Proxy state
         proxyStatus: {},
         proxyError: null,
@@ -1270,6 +1297,17 @@ function adminApp() {
 
         async init() {
             await this.refresh();
+            // If compute is already mid-provisioning from an earlier action (someone
+            // else scaled up, or this page was reloaded mid-wait), pick up tracking
+            // it rather than just showing a static, possibly-stale replica count.
+            try {
+                const s = await fetchComputeStatus(this.namespace);
+                if (s.desired_replicas > 0 && !s.container_ready) {
+                    this.trackComputeProvisioning();
+                }
+            } catch (error) {
+                console.error('Failed to check compute status on init:', error);
+            }
         },
 
         async refresh() {
@@ -1381,6 +1419,7 @@ function adminApp() {
         },
 
         async scale(replicas) {
+            const previousReplicas = this.currentReplicas;
             this.scaling = true;
             this.scaleResult = null;
             try {
@@ -1392,11 +1431,67 @@ function adminApp() {
                 this.scaleResult = await res.json();
                 if (this.scaleResult.success) {
                     setTimeout(() => this.loadStatus(), 2000);
+                    // Only track provisioning on a genuine scale-UP -- scaling down
+                    // just terminates pods quickly, no Karpenter wait involved.
+                    if (replicas > previousReplicas) {
+                        this.trackComputeProvisioning();
+                    }
                 }
             } catch (error) {
                 this.scaleResult = { success: false, message: error.message };
             }
             this.scaling = false;
+        },
+
+        async trackComputeProvisioning() {
+            this.computeProgress = {
+                error: null,
+                stages: [
+                    { key: 'requested', label: 'Requesting compute', status: 'done' },
+                    { key: 'node', label: 'Waiting for node', status: 'pending' },
+                    { key: 'pod', label: 'Pod starting', status: 'pending' },
+                    { key: 'ready', label: 'Ready', status: 'pending' },
+                ],
+            };
+
+            try {
+                // Waiting for node: GPU capacity availability is inherently variable
+                // (took 35 min in one observed case, ~2 hours in another).
+                this.setComputeStage('node', 'active');
+                await pollUntil(async () => {
+                    const s = await fetchComputeStatus(this.namespace);
+                    return s.pod_phase === 'Running';
+                }, 600, 3000);
+                this.setComputeStage('node', 'done');
+
+                this.setComputeStage('pod', 'active');
+                await pollUntil(async () => {
+                    const s = await fetchComputeStatus(this.namespace);
+                    return s.container_ready;
+                }, 60, 2000);
+                this.setComputeStage('pod', 'done');
+                this.setComputeStage('ready', 'done');
+
+                await this.loadStatus();
+            } catch (error) {
+                console.error('Compute provisioning tracking failed:', error);
+                this.failActiveComputeStage(error.message || String(error));
+            }
+        },
+
+        setComputeStage(key, status) {
+            if (!this.computeProgress) return;
+            this.computeProgress.stages = this.computeProgress.stages.map(s =>
+                s.key === key ? { ...s, status } : s
+            );
+        },
+
+        failActiveComputeStage(message) {
+            if (!this.computeProgress) return;
+            this.computeProgress.error = message;
+            this.computeProgress.stages = this.computeProgress.stages.map(s =>
+                s.status === 'active' ? { ...s, status: 'error' } : s
+            );
         },
 
         async loadProxyStatus() {

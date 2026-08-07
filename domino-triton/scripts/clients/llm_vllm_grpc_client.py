@@ -2,12 +2,28 @@
 """
 LLM Text Generation Client - vLLM backend (gRPC)
 
-Targets the Triton vLLM backend (tinyllama-vllm, qwen25-vllm, or any model
-using the native vllm Triton backend).
+Targets the Triton vLLM backend (tinyllama-vllm, qwen25-vllm, llama4scout-vllm
+variants, or any model using the native vllm Triton backend).
 
 Tensor schema (differs from the Python backend):
-  Input:  text_input (STRING), stream (BOOL), sampling_parameters (STRING JSON)
+  Input:  text_input (STRING), stream (BOOL), sampling_parameters (STRING JSON),
+          image (STRING, optional, repeated -- base64-encoded JPEG per frame,
+          only for multimodal models like Llama 4 Scout)
   Output: text_output (STRING)
+
+Video/multi-image input (--video):
+  Samples --max-frames evenly-spaced frames from the video, base64-encodes
+  each as JPEG, and sends them via the "image" input tensor. The prompt is
+  built with one <|image|> placeholder token per sampled frame, matching
+  Llama 4's chat template convention -- confirmed working against
+  llama4scout-vllm-fp8-dynamic (see results/llama4scout-fp8-dynamic/ for the
+  original ad hoc version of this test). Requires the model's vLLM engine
+  to actually support multimodal input (limit_mm_per_prompt set in
+  model.json, and a vLLM version with native Llama4ForConditionalGeneration
+  support -- vllm==0.8.1's Transformers-fallback path does not support this
+  at all). Only meaningful for vision-capable models; passing --video to a
+  text-only model will fail once the extra "image" tensor reaches an engine
+  that doesn\'t expect it.
 
 Chat template formatting:
   The Triton vLLM backend accepts a raw string — it does NOT apply a chat
@@ -57,12 +73,14 @@ Usage:
 
 import argparse
 import asyncio
+import base64
 import json
 import logging
 import os
 import time
-from typing import Optional
+from typing import List, Optional
 
+import cv2
 import numpy as np
 import tritonclient.grpc.aio as grpcclient
 from tritonclient.utils import InferenceServerException
@@ -171,6 +189,58 @@ def _hf_model_id_from_name(triton_model_name: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# Video frame sampling (multimodal models only, e.g. Llama 4 Scout)
+# ---------------------------------------------------------------------------
+
+def sample_video_frames_base64(
+    video_path: str,
+    max_frames: int = 4,
+    start_time: float = 0.0,
+    end_time: float = None,
+) -> List[str]:
+    """Sample max_frames evenly-spaced frames from a video's [start_time, end_time)
+    window (default: the full video), return as base64 JPEG strings."""
+    cap = cv2.VideoCapture(video_path)
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    video_fps = cap.get(cv2.CAP_PROP_FPS) or 0
+    if total <= 0:
+        cap.release()
+        raise ValueError(f"Could not read frames from video: {video_path}")
+
+    start_idx = int((start_time or 0.0) * video_fps) if video_fps else 0
+    start_idx = max(0, min(start_idx, total - 1))
+    end_idx = int(end_time * video_fps) if end_time is not None and video_fps else total
+    end_idx = max(start_idx + 1, min(end_idx, total))
+
+    step = max(1, (end_idx - start_idx) // max_frames)
+    frames_b64 = []
+    idx = start_idx
+    while len(frames_b64) < max_frames and idx < end_idx:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        ok, frame = cap.read()
+        if ok:
+            success, buf = cv2.imencode(".jpg", frame)
+            if success:
+                frames_b64.append(base64.b64encode(buf.tobytes()).decode("utf-8"))
+        idx += step
+    cap.release()
+
+    if not frames_b64:
+        raise ValueError(f"Sampled zero readable frames from video: {video_path}")
+    return frames_b64
+
+
+def build_video_prompt(num_frames: int, instruction: str) -> str:
+    """Llama 4 chat template with one <|image|> placeholder per sampled frame."""
+    image_tokens = "<|image|>" * num_frames
+    return (
+        f"<|begin_of_text|><|header_start|>user<|header_end|>\n\n"
+        f"{image_tokens}{instruction}"
+        f"<|eot|><|header_start|>assistant<|header_end|>\n\n"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Triton inference
 # ---------------------------------------------------------------------------
 
@@ -184,6 +254,7 @@ def _build_inputs(
     guided_json: Optional[str] = None,
     guided_regex: Optional[str] = None,
     guided_choice: Optional[str] = None,
+    images_b64: Optional[List[str]] = None,
 ) -> list:
     """Build Triton input tensors for the vLLM backend."""
     text_input = grpcclient.InferInput("text_input", [1], "BYTES")
@@ -215,7 +286,14 @@ def _build_inputs(
     exclude_input = grpcclient.InferInput("exclude_input_in_output", [1], "BOOL")
     exclude_input.set_data_from_numpy(np.array([exclude_input_in_output], dtype=bool))
 
-    return [text_input, stream_input, sampling_input, exclude_input]
+    inputs = [text_input, stream_input, sampling_input, exclude_input]
+
+    if images_b64:
+        image_input = grpcclient.InferInput("image", [len(images_b64)], "BYTES")
+        image_input.set_data_from_numpy(np.array(images_b64, dtype=np.object_))
+        inputs.append(image_input)
+
+    return inputs
 
 
 async def infer_non_streaming(
@@ -229,6 +307,7 @@ async def infer_non_streaming(
     guided_json: Optional[str] = None,
     guided_regex: Optional[str] = None,
     guided_choice: Optional[str] = None,
+    images_b64: Optional[List[str]] = None,
 ) -> dict:
     # vLLM uses decoupled transaction policy — ModelInfer RPC is not supported.
     # Use stream_infer() with a single-item async generator (same as notebook).
@@ -236,6 +315,7 @@ async def infer_non_streaming(
         prompt, max_tokens=max_tokens, temperature=temperature, top_p=top_p,
         stream=False,
         guided_json=guided_json, guided_regex=guided_regex, guided_choice=guided_choice,
+        images_b64=images_b64,
     )
     outputs = [grpcclient.InferRequestedOutput("text_output")]
 
@@ -314,6 +394,15 @@ def main():
     )
     parser.add_argument("--prompt", "-p", default="What is the capital of France?")
     parser.add_argument(
+        "--video", help="Video file to sample frames from (multimodal models only, e.g. Llama 4 Scout). "
+                         "When set, overrides --prompt with a frame-summarization prompt.")
+    parser.add_argument("--max-frames", type=int, default=4, help="Frames to sample from --video (default: 4)")
+    parser.add_argument("--start-time", type=float, default=0.0, help="Start time in seconds within --video (default: 0)")
+    parser.add_argument("--end-time", type=float, help="End time in seconds within --video (default: end of video)")
+    parser.add_argument(
+        "--video-instruction", default="These are frames sampled from a video. Summarize what is happening in the video.",
+        help="Instruction text appended after the <|image|> placeholders when --video is set")
+    parser.add_argument(
         "--grpc-url", "-u",
         default=os.environ.get("TRITON_GRPC_URL", "localhost:50051"),
         help="gRPC proxy URL (env: TRITON_GRPC_URL)",
@@ -373,7 +462,15 @@ def main():
 
     # Optionally apply chat template
     prompt = args.prompt
-    if args.apply_chat_template:
+    images_b64 = None
+    if args.video:
+        images_b64 = sample_video_frames_base64(
+            args.video, max_frames=args.max_frames, start_time=args.start_time, end_time=args.end_time
+        )
+        prompt = build_video_prompt(len(images_b64), args.video_instruction)
+        logger.info(f"Sampled {len(images_b64)} frames from {args.video}")
+        logger.debug(f"Video prompt:\n{prompt}")
+    elif args.apply_chat_template:
         prompt = apply_chat_template(
             model_name=args.model,
             user_prompt=args.prompt,
@@ -394,10 +491,10 @@ def main():
 
     logger.info("-" * 60)
 
-    asyncio.run(_run(args, prompt, headers))
+    asyncio.run(_run(args, prompt, headers, images_b64))
 
 
-async def _run(args, prompt, headers):
+async def _run(args, prompt, headers, images_b64=None):
     client = grpcclient.InferenceServerClient(url=args.grpc_url)
 
     infer_kwargs = dict(
@@ -407,6 +504,8 @@ async def _run(args, prompt, headers):
         guided_regex=args.guided_regex,
         guided_choice=args.guided_choice,
     )
+    if images_b64:
+        infer_kwargs["images_b64"] = images_b64
 
     try:
         if args.stream:

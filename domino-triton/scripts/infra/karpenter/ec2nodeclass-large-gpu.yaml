@@ -1,0 +1,59 @@
+# Dedicated EC2NodeClass for large-model GPU serving (Llama 4 Scout and future
+# large models needing multi-GPU nodes like g6e.48xlarge/p5.48xlarge).
+#
+# Separate from the shared domino-eks-gpu EC2NodeClass used by the small-model
+# `gpu` NodePool -- per Marc Doan: per-deployment compute customization is done
+# via EC2NodeClass additions, not a cerebrotech/domino-cloud-configs PR, and
+# genuinely separate/distinctly-named NodeClass objects aren't touched by the
+# deployer's reconciliation on infra upgrades (only modifications to the
+# existing shared ones are). See docs/known_issues_and_todos.md.
+#
+# Spec is currently identical to domino-eks-gpu (same AMI/IAM role/security
+# group/subnet discovery -- those are account/cluster-wide, not GPU-tier-
+# specific) -- the point of splitting it out is or so this large-model compute
+# profile can diverge independently later (e.g. a different AMI, without
+# touching what small-model serving depends on), and so it's a genuinely
+# separate object per Marc's guidance above, not a shared one we happen to
+# also reference.
+#
+# To apply:
+#   kubectl apply -f scripts/infra/karpenter/ec2nodeclass-large-gpu.yaml
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: domino-eks-large-gpu
+spec:
+  amiFamily: AL2023
+  amiSelectorTerms:
+  - name: amazon-eks-node-al2023-x86_64-nvidia-1.34-v20260512
+    owner: amazon
+  blockDeviceMappings:
+  - deviceName: /dev/xvda
+    ebs:
+      encrypted: true
+      volumeSize: 500Gi
+      volumeType: gp3
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 2
+    httpTokens: required
+  role: marcdo126967-eks-nodes
+  securityGroupSelectorTerms:
+  - tags:
+      karpenter.sh/discovery: marcdo126967
+  subnetSelectorTerms:
+  - tags:
+      karpenter.sh/discovery: marcdo126967
+  tags:
+    aws-apn-id: pc:2umrgw02q6y8t2te66fgdx6sk
+    build_timestamp: 2026-05-20T14:31:19.081505
+    customer_name: frbny
+    deploy_id: marcdo126967
+    deploy_tag: v71.3
+    deploy_type: dev-aws-eks
+    domino-karpenter: marcdo126967
+    infosec_accountability: Domino CloudOps
+    infosec_classification: sensitive
+    infosec_purpose: Domino Deployment
+    user_email: marc.doan@dominodatalab.com

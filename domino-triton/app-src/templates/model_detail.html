@@ -48,6 +48,7 @@
                 :disabled="modelLoading"
                 x-text="modelLoading ? modelLoadingAction : (model.loaded ? 'Unload Model' : 'Load Model')"
             ></button>
+            <span class="load-elapsed-time" x-show="modelLoading" x-text="'Elapsed: ' + formatDuration(loadElapsedSecs)"></span>
             <template x-if="!model.state?.pinned">
                 <button class="btn btn-secondary" @click="pinModel()">Pin</button>
             </template>
@@ -379,9 +380,28 @@
                     </template>
                 </select>
                 <div class="video-params" x-show="inputType === 'video'">
-                    <label>
-                        Max Frames:
-                        <input type="number" x-model.number="maxFrames" min="1" max="100">
+                    <!-- Which of these show up depends on the model: a per-frame CV
+                         model like yolov8n has no frame-count budget (rate + time
+                         range fully describe how much of the video gets analyzed),
+                         while a vision-context-constrained LLM like llama4scout has
+                         a real, small frame budget instead of a rate (see
+                         docs/known_issues_and_todos.md). videoControls comes from
+                         /api/testing/model-types/{model}. -->
+                    <label x-show="videoControls.includes('sample_fps')">
+                        Sampling rate (frames/sec):
+                        <input type="number" x-model.number="sampleFps" min="0.1" max="30" step="0.1">
+                    </label>
+                    <label x-show="videoControls.includes('frames_per_iteration')">
+                        Frames per iteration:
+                        <input type="number" x-model.number="framesPerIteration" min="1" max="32">
+                    </label>
+                    <label x-show="videoControls.includes('time_range')">
+                        Start time (sec):
+                        <input type="number" x-model.number="startTime" min="0" step="1">
+                    </label>
+                    <label x-show="videoControls.includes('time_range')">
+                        End time (sec, blank = full length):
+                        <input type="number" x-model.number="endTime" min="0" step="1" placeholder="full length">
                     </label>
                 </div>
             </div>
@@ -1577,7 +1597,10 @@ function modelDetailApp() {
         model: {},
         modelLoading: false,  // Loading state for load/unload operations
         modelLoadingAction: 'Loading...',  // Text to show during loading
+        loadElapsedSecs: 0,  // Live elapsed-time counter shown while modelLoading is true
+        _loadTimerHandle: null,  // setInterval handle backing loadElapsedSecs
         modelTypes: [],  // Suggested types from API
+        videoControls: [],  // Which video controls apply to this model (from API), e.g. ['sample_fps', 'time_range']
         allInputTypes: ['text', 'image', 'video', 'audio'],  // All available input types
         samples: [],
         protocol: 'rest',
@@ -1586,7 +1609,10 @@ function modelDetailApp() {
         selectedFile: '',
         maxTokens: 100,
         temperature: 0.7,
-        maxFrames: 10,
+        sampleFps: 2,
+        framesPerIteration: 8,
+        startTime: 0,
+        endTime: null,
         inferring: false,
         result: null,
         namespace: '{{ current_namespace }}',
@@ -1718,6 +1744,7 @@ function modelDetailApp() {
                 if (res.ok) {
                     const data = await res.json();
                     this.modelTypes = data.input_types || [];
+                    this.videoControls = data.video_controls || [];
                     // Auto-select first suggested type if available, otherwise default to text
                     if (this.modelTypes.length > 0) {
                         this.inputType = this.modelTypes[0];
@@ -1729,6 +1756,7 @@ function modelDetailApp() {
             } catch (error) {
                 console.error('Failed to load model types:', error);
                 this.modelTypes = [];
+                this.videoControls = [];
             }
         },
 
@@ -1748,16 +1776,24 @@ function modelDetailApp() {
             console.log('loadModelAction called, setting modelLoading=true');
             this.modelLoading = true;
             this.modelLoadingAction = 'Loading...';
+            this.loadElapsedSecs = 0;
+            this._loadTimerHandle = setInterval(() => { this.loadElapsedSecs++; }, 1000);
             try {
                 const res = await fetch(buildUrl(`/api/dashboard/models/${this.modelName}/load?namespace=${this.namespace}`), { method: 'POST' });
                 console.log('Load response received:', res.status);
                 if (res.ok) {
                     await this.loadModel();
+                } else {
+                    const detail = await res.text().catch(() => res.statusText);
+                    console.error('Failed to load model:', detail);
+                    showToast(`Failed to load ${this.modelName}: ${detail}`, 'error');
                 }
             } catch (error) {
                 console.error('Failed to load model:', error);
+                showToast(`Failed to load ${this.modelName}: ${error.message || error}`, 'error');
             } finally {
                 console.log('loadModelAction done, setting modelLoading=false');
+                clearInterval(this._loadTimerHandle);
                 this.modelLoading = false;
             }
         },
@@ -1771,6 +1807,10 @@ function modelDetailApp() {
                 console.log('Unload response received:', res.status);
                 if (res.ok) {
                     await this.loadModel();
+                } else {
+                    const detail = await res.text().catch(() => res.statusText);
+                    console.error('Failed to unload model:', detail);
+                    showToast(`Failed to unload ${this.modelName}: ${detail}`, 'error');
                 }
             } catch (error) {
                 console.error('Failed to unload model:', error);
@@ -1833,7 +1873,10 @@ function modelDetailApp() {
                 protocol: this.protocol,
                 max_tokens: this.maxTokens,
                 temperature: this.temperature,
-                max_frames: this.maxFrames,
+                sample_fps: this.sampleFps,
+                frames_per_iteration: this.framesPerIteration,
+                start_time: this.startTime,
+                end_time: this.endTime === '' ? null : this.endTime,
             };
 
             if (this.inputType === 'text') {
